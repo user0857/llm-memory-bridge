@@ -13,10 +13,10 @@ venv/
 .DS_Store
 
 # Server Data (Privacy!)
-gemini-bridge/server/chroma_db/
-gemini-bridge/server/memory.json
+server/chroma_db/
+server/memory.json
 *.log
 *.pid
 
 # Extension
-gemini-bridge/extension/.DS_Store
+extension/.DS_Store

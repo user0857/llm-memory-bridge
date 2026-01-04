@@ -1,16 +1,13 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
-import json
-import os
 from datetime import datetime
 import chromadb
 from chromadb.utils import embedding_functions
 
-app = FastAPI(title="Gemini Memory Bridge (Vector RAG Edition)")
+app = FastAPI(title="Gemini Memory Bridge (Vector RAG Only)")
 
 # --- 配置 ---
-DATA_FILE = "memory.json"
 CHROMA_PATH = "chroma_db"
 
 # 初始化 ChromaDB
@@ -38,78 +35,39 @@ class MemoryResponse(BaseModel):
     context: str
     source_count: int
 
-# --- 辅助函数 ---
-def load_json_memories() -> List[dict]:
-    if not os.path.exists(DATA_FILE):
-        return []
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
-            return []
-
-def save_json_memory(content: str, tags: list = None):
-    memories = load_json_memories()
-    timestamp = datetime.now().isoformat()
-    new_memory = {
-        "content": content,
-        "timestamp": timestamp,
-        "tags": tags or []
-    }
-    memories.append(new_memory)
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(memories, f, ensure_ascii=False, indent=2)
-    return new_memory, timestamp
-
-# --- 迁移逻辑 (Migration) ---
-# 每次启动时检查，如果 Chroma 是空的但 JSON 有数据，就导进去
-def migrate_json_to_chroma():
-    existing_count = collection.count()
-    if existing_count == 0:
-        json_data = load_json_memories()
-        if json_data:
-            print(f"🔄 Migrating {len(json_data)} memories from JSON to Vector DB...")
-            ids = [f"mem_{i}" for i in range(len(json_data))]
-            documents = [m["content"] for m in json_data]
-            metadatas = [{"timestamp": m["timestamp"], "tags": ",".join(m["tags"])} for m in json_data]
-            
-            collection.add(
-                documents=documents,
-                metadatas=metadatas,
-                ids=ids
-            )
-            print("✅ Migration complete.")
-
-# 执行迁移
-migrate_json_to_chroma()
-
 # --- 核心 API ---
 
 @app.get("/")
 def read_root():
-    return {"status": "running", "mode": "Vector RAG", "count": collection.count()}
+    return {"status": "running", "mode": "Vector RAG Only", "count": collection.count()}
 
 @app.post("/add_memory")
 def add_memory(item: MemoryItem):
     """
-    保存记忆：同时写入 JSON (备份) 和 ChromaDB (检索)
+    保存记忆：只写入 ChromaDB (检索)
     """
-    # 1. 存 JSON
-    saved_item, timestamp = save_json_memory(item.content, item.tags)
+    timestamp = datetime.now().isoformat()
+    tags = item.tags or []
     
-    # 2. 存 ChromaDB
     # 生成唯一 ID (简单起见用时间戳+哈希，或者 UUID)
     import hashlib
     doc_id = hashlib.md5((item.content + timestamp).encode()).hexdigest()
     
     collection.add(
         documents=[item.content],
-        metadatas=[{"timestamp": timestamp, "tags": ",".join(item.tags)}],
+        metadatas=[{"timestamp": timestamp, "tags": ",".join(tags)}],
         ids=[doc_id]
     )
     
     print(f"📥 Saved memory: {item.content[:30]}...")
-    return {"status": "success", "data": saved_item}
+    return {
+        "status": "success", 
+        "data": {
+            "content": item.content,
+            "timestamp": timestamp,
+            "tags": tags
+        }
+    }
 
 @app.post("/search_context", response_model=MemoryResponse)
 def search_context(query: QueryRequest):
