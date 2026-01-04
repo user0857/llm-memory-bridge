@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+.env
+
+# PyCharm
+.idea/
+
+# macOS
+.DS_Store
+
+# Server Data (Privacy!)
+gemini-bridge/server/chroma_db/
+gemini-bridge/server/memory.json
+*.log
+*.pid
+
+# Extension
+gemini-bridge/extension/.DS_Store

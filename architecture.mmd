@@ -1,0 +1,61 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'fontFamily': 'arial', 'fontSize': '16px', 'primaryColor': '#fff', 'edgeLabelBackground': '#fff', 'clusterBkg': '#f9f9f9', 'clusterBorder': '#666' }}}%%
+graph TD
+    %% 样式定义
+    classDef userNode fill:#FFAB91,stroke:#BF360C,stroke-width:2px,color:white,font-weight:bold;
+    classDef browserEnv fill:#E1F5FE,stroke:#0277BD,stroke-width:2px,stroke-dasharray: 5 5;
+    classDef localEnv fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,stroke-dasharray: 5 5;
+    classDef cloudEnv fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px,stroke-dasharray: 5 5;
+    
+    classDef component fill:#ffffff,stroke:#455A64,stroke-width:1px,rx:5,ry:5,shadow:true;
+    classDef highlight fill:#FFF9C4,stroke:#FBC02D,stroke-width:2px,rx:5,ry:5;
+    classDef database fill:#E0F2F1,stroke:#00695C,stroke-width:2px,rx:5,ry:5;
+
+    %% 用户
+    User((User / 用户)):::userNode
+
+    %% 浏览器环境
+    subgraph ChromeBrowser ["☁️ Chrome 浏览器环境"]
+        direction TB
+        GeminiWeb["🖥️ Gemini 网页版 UI"]:::component
+        Extension["🧩 Chrome 插件 (前端)"]:::highlight
+        
+        %% 内部连线
+        Extension -.- |"1. 监听/抓取"| GeminiWeb
+        Extension -.- |"2. 注入记忆"| GeminiWeb
+    end
+
+    %% 本地环境
+    subgraph LocalEnvironment ["💻 你的电脑 (Localhost)"]
+        direction TB
+        
+        %% 中转服务
+        SyncServer["⚙️ 本地 Python Server<br/>(FastAPI / Flask)"]:::highlight
+        
+        %% CLI
+        GeminiCLI["⌨️ Gemini CLI 工具"]:::component
+        
+        %% 存储
+        MemoryDB[("🗄️ 本地记忆库<br/>JSON / SQLite")]:::database
+        
+        %% 内部连线
+        SyncServer <-->|"读/写"| MemoryDB
+        GeminiCLI <-->|"API 请求"| SyncServer
+    end
+
+    %% 远程服务
+    subgraph GoogleCloud ["🌐 Google Cloud"]
+        RealGemini["🧠 Google Gemini API"]:::component
+    end
+
+    %% 外部交互
+    User ==>|"打字聊天"| GeminiWeb
+    User ==>|"命令行指令"| GeminiCLI
+    
+    GeminiWeb <-->|"HTTPS"| RealGemini
+    GeminiCLI <-->|"HTTPS"| RealGemini
+
+    %% 核心跨域链路
+    Extension <==>|"HTTP (localhost:8000)"| SyncServer
+
+    %% 应用样式到子图 (虽然Mermaid对子图样式支持有限，这里尝试保持默认或通过init控制)
+    %% Note: Subgraph styling is handled by theme variables mainly in this config
