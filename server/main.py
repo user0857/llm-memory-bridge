@@ -90,8 +90,8 @@ def search_context(query: QueryRequest):
     # 简单的距离阈值过滤 (可选)
     # results['distances'] 越小越相似 (L2 距离)
     # 对于 paraphrase-multilingual-MiniLM-L12-v2, 距离通常在 0 ~ 2 之间
-    # 经验阈值: < 1.2 表示有一定相关性, < 0.8 表示强相关
-    THRESHOLD = 1.2
+    # 调整为 1.8 (非常宽松)，确保"强制"读取最相关的记忆，即使相关性不高
+    THRESHOLD = 1.8
     
     found_docs = results['documents'][0]
     found_distances = results['distances'][0]
@@ -101,6 +101,9 @@ def search_context(query: QueryRequest):
         print(f"🔍 Match: {doc[:20]}... (Dist: {dist:.4f})")
         
         if dist < THRESHOLD:
+            # 如果距离稍远(>1.2)，可以在前面加个标注，但依然返回
+            if dist > 1.3:
+                doc = f"(弱相关) {doc}"
             valid_docs.append(doc)
 
     if not valid_docs:

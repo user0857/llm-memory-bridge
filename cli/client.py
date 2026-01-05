@@ -3,93 +3,90 @@ import sys
 import json
 import requests
 import google.generativeai as genai
-from datetime import datetime
+from google.generativeai.types import content_types
+from collections.abc import Iterable
 from pathlib import Path
 
 # --- 配置 ---
 BRIDGE_SERVER_URL = "http://127.0.0.1:8000"
-API_KEY = os.getenv("GEMINI_API_KEY") # 请确保环境变量里有这个
+API_KEY = os.getenv("GEMINI_API_KEY")
 HISTORY_FILE = Path("chat_history.json")
 
 if not API_KEY:
     print("❌ 错误: 未找到 GEMINI_API_KEY 环境变量。")
-    print("请执行: export GEMINI_API_KEY='你的key'")
     sys.exit(1)
 
 genai.configure(api_key=API_KEY)
 
-# --- Bridge API ---
-def get_context_from_bridge(query):
+# --- Tool Functions (供 Gemini 调用) ---
+def search_memory_tool(query: str):
+    """
+    Search the long-term memory for relevant context.
+    Use this when the user asks about past events, preferences, or specific project details.
+    """
+    print(f"  🔍 [Tool] Searching memory for: '{query}'...")
     try:
-        resp = requests.post(f"{BRIDGE_SERVER_URL}/search_context", json={"user_input": query}, timeout=2)
+        resp = requests.post(f"{BRIDGE_SERVER_URL}/search_context", json={"user_input": query}, timeout=5)
         if resp.status_code == 200:
             data = resp.json()
-            return data.get("context", "")
+            ctx = data.get("context", "")
+            if ctx:
+                return ctx
+            return "No relevant memories found."
     except Exception as e:
-        # print(f"⚠️ 无法连接记忆服务器: {e}")
-        pass
-    return ""
+        return f"Error connecting to memory bridge: {e}"
+    return "No result."
 
-def save_memory_to_bridge(content):
+def save_memory_tool(content: str, tags: str = ""):
+    """
+    Save important information to long-term memory.
+    Use this when the user explicitly asks to remember something, or shares significant personal/project info.
+    Args:
+        content: The text to remember.
+        tags: Comma-separated tags (e.g. "project,preference").
+    """
+    print(f"  💾 [Tool] Saving memory: '{content}'...")
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     try:
         requests.post(
             f"{BRIDGE_SERVER_URL}/add_memory", 
-            json={"content": content, "tags": ["cli-chat"]},
-            timeout=2
+            json={"content": content, "tags": tag_list},
+            timeout=5
         )
-    except Exception:
-        pass # 静默失败，不打断对话
+        return "Memory saved successfully."
+    except Exception as e:
+        return f"Error saving memory: {e}"
+
+# 工具映射表
+tools_map = {
+    'search_memory_tool': search_memory_tool,
+    'save_memory_tool': save_memory_tool
+}
 
 # --- Session Management ---
+# 简化版历史记录，主要用于恢复，但在 Function Calling 场景下
+# 复杂的 FunctionResponse 序列化比较麻烦，这里暂时只保存简单的文本交互作为上下文恢复参考
+# 或者完全重置以保证工具调用的连贯性。
 def load_chat_history():
-    if not HISTORY_FILE.exists():
-        return []
-    
-    try:
-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            # 转换为 genai 需要的格式
-            history = []
-            for item in data:
-                history.append({
-                    "role": item["role"],
-                    "parts": item["parts"]
-                })
-            return history
-    except Exception as e:
-        print(f"⚠️ 无法加载历史记录: {e}")
-        return []
-
-def save_chat_history(history):
-    data = []
-    for entry in history:
-        # entry 是 google.ai.generativelanguage.Content 类型
-        parts = []
-        for part in entry.parts:
-            parts.append(part.text)
-        
-        data.append({
-            "role": entry.role,
-            "parts": parts
-        })
-        
-    try:
-        with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print(f"⚠️ 无法保存历史记录: {e}")
+    # 暂时禁用历史恢复，因为 Tool Call 的历史结构比较复杂，
+    # 简单的 JSON 恢复容易导致 SDK 报错。
+    # 建议每次启动都是新会话，但拥有长期记忆库。
+    return []
 
 # --- 主程序 ---
 def main():
-    history = load_chat_history()
-    model = genai.GenerativeModel('gemini-pro')
-    chat = model.start_chat(history=history)
+    # 1. 初始化模型，绑定工具
+    tools = [search_memory_tool, save_memory_tool]
+    model = genai.GenerativeModel('gemini-1.5-flash', tools=tools) # 使用支持工具更好的模型
     
-    print("\n🤖 Gemini CLI (Memory Synced + Session Restore)")
-    print("--------------------------------")
-    if history:
-        print(f"🔄 已恢复之前的对话 ({len(history)} 条消息)")
-    print("提示: 输入 'exit' 退出，输入 '/clear' 清除当前会话。")
+    # 开启自动函数调用 (Auto-function calling)
+    # SDK 会自动处理 function_call -> function_response 的往返
+    chat = model.start_chat(enable_automatic_function_calling=True)
+    
+    print("\n🤖 Gemini CLI (Tool Use / Agent Mode)")
+    print("-------------------------------------")
+    print("提示: 我现在有自主权，会根据需要查阅记忆或记录信息。")
+    print("      输入 '/recall <query>' 可强制手动检索。")
 
     while True:
         try:
@@ -99,57 +96,17 @@ def main():
             if user_input.lower() in ['exit', 'quit']: 
                 break
             
-            if user_input.lower() == '/clear':
-                if HISTORY_FILE.exists():
-                    os.remove(HISTORY_FILE)
-                chat = model.start_chat(history=[])
-                print("🧹 会话已重置。")
-                continue
-
+            # 手动指令保留
             if user_input.lower().startswith('/recall'):
-                query = user_input[7:].strip()
-                if not query:
-                    print("⚠️ 请输入查询内容，例如: /recall 螃蟹")
-                    continue
-                
-                print(f"🔍 正在检索关于 '{query}' 的记忆...")
-                ctx = get_context_from_bridge(query)
-                if ctx:
-                    print(f"✅ 检索结果:\n{ctx}")
-                else:
-                    print("📭 未找到相关记忆 (可能是相似度过低或无数据)")
+                q = user_input[7:].strip()
+                print(search_memory_tool(q))
                 continue
 
-            # 1. RAG: 去本地服务器查记忆
-            context_prompt = ""
-            retrieved_context = get_context_from_bridge(user_input)
+            # 发送给 Gemini (SDK 自动处理工具调用)
+            response = chat.send_message(user_input)
             
-            if retrieved_context:
-                print(f"   (🔗 已关联本地记忆)")
-                context_prompt = f"{retrieved_context}\n\n基于以上背景，请回答：\n"
-
-            # 2. 发送给 Gemini
-            full_prompt = context_prompt + user_input
-            
-            # 捕获可能的 API 错误
-            try:
-                response = chat.send_message(full_prompt, stream=True)
-                
-                print("Gemini: ", end="", flush=True)
-                full_response_text = ""
-                for chunk in response:
-                    text = chunk.text
-                    print(text, end="", flush=True)
-                    full_response_text += text
-                print("\n")
-
-                # 3. 双向同步
-                save_chat_history(chat.history)
-                save_memory_to_bridge(f"CLI User: {user_input}")
-                save_memory_to_bridge(f"CLI Gemini: {full_response_text}")
-                
-            except Exception as api_err:
-                print(f"\n❌ API Error: {api_err}")
+            # 打印回复
+            print(f"Gemini: {response.text}")
 
         except KeyboardInterrupt:
             break
