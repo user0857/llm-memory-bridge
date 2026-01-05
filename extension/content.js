@@ -24,21 +24,46 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 // 创建状态指示灯 (网页右下角)
-const statusIndicator = document.createElement("div");
-statusIndicator.id = "gemini-memory-indicator";
-statusIndicator.innerText = "M";
-statusIndicator.title = "Memory Bridge (Click to open extension)";
-document.body.appendChild(statusIndicator);
+let statusIndicator = null;
+
+function createStatusIndicator() {
+    if (statusIndicator || !document.body) return;
+    
+    statusIndicator = document.createElement("div");
+    statusIndicator.id = "gemini-memory-indicator";
+    statusIndicator.innerText = "M";
+    statusIndicator.title = "Memory Bridge (Click to open extension)";
+    document.body.appendChild(statusIndicator);
+    
+    // 恢复之前的状态显示
+    chrome.storage.local.get(['isPaused'], (result) => {
+        isPaused = !!result.isPaused;
+        updateStatusIcon();
+    });
+}
 
 function updateStatusIcon(hasContext = false) {
+  if (!statusIndicator) return;
+  
+  let iconStatus = "gray"; // default paused/idle
+  
   if (isPaused) {
     statusIndicator.style.backgroundColor = "#9e9e9e";
     statusIndicator.style.opacity = "0.6";
     statusIndicator.innerText = "M-";
+    iconStatus = "gray";
   } else {
     statusIndicator.style.backgroundColor = hasContext ? "#4caf50" : "#ccc";
     statusIndicator.style.opacity = "1";
     statusIndicator.innerText = hasContext ? "M+" : "M";
+    iconStatus = "active";
+  }
+  
+  // 同步更新右上角插件图标 (Badge)
+  try {
+      chrome.runtime.sendMessage({ action: "updateIcon", status: iconStatus });
+  } catch (e) {
+      // 忽略 context invalidated 错误
   }
 }
 
@@ -200,6 +225,7 @@ function extractLastAIResponse() {
 }
 
 function initBridge() {
+    createStatusIndicator();
     setInterval(() => {
         const inputArea = getInputArea();
         if (inputArea && !inputArea.dataset.bridgeAttached) {
