@@ -7,8 +7,10 @@ from chromadb.utils import embedding_functions
 
 app = FastAPI(title="Gemini Memory Bridge (Vector RAG Only)")
 
+import os
 # --- 配置 ---
-CHROMA_PATH = "chroma_db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CHROMA_PATH = os.path.join(BASE_DIR, "chroma_db")
 
 # 初始化 ChromaDB
 # 使用持久化客户端
@@ -30,6 +32,9 @@ class MemoryItem(BaseModel):
 
 class QueryRequest(BaseModel):
     user_input: str
+
+class DeleteRequest(BaseModel):
+    memory_id: str
 
 class MemoryResponse(BaseModel):
     context: str
@@ -63,11 +68,55 @@ def add_memory(item: MemoryItem):
     return {
         "status": "success", 
         "data": {
+            "id": doc_id,
             "content": item.content,
             "timestamp": timestamp,
             "tags": tags
         }
     }
+
+@app.post("/api/search")
+def api_search(query: QueryRequest):
+    """
+    通用搜索接口 (供 MCP Agent 等使用)
+    返回详细的 JSON 结构，包含 ID，方便后续删除或修改
+    """
+    results = collection.query(
+        query_texts=[query.user_input],
+        n_results=5
+    )
+    
+    if not results['documents'] or not results['documents'][0]:
+        return {"results": []}
+
+    structured_results = []
+    # ChromaDB returns lists of lists
+    docs = results['documents'][0]
+    ids = results['ids'][0]
+    metadatas = results['metadatas'][0]
+    distances = results['distances'][0]
+
+    for i in range(len(docs)):
+        structured_results.append({
+            "id": ids[i],
+            "content": docs[i],
+            "metadata": metadatas[i],
+            "distance": distances[i]
+        })
+        
+    return {"results": structured_results}
+
+@app.post("/api/delete")
+def delete_memory(req: DeleteRequest):
+    """
+    删除指定 ID 的记忆
+    """
+    try:
+        # chroma collection.delete supports where filters or ids
+        collection.delete(ids=[req.memory_id])
+        return {"status": "success", "message": f"Memory {req.memory_id} deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/search_context", response_model=MemoryResponse)
 def search_context(query: QueryRequest):

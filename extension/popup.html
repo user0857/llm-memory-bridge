@@ -1,17 +1,32 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <style>
-    body { width: 200px; padding: 10px; font-family: sans-serif; }
-    h3 { margin-top: 0; }
-    .status { font-size: 12px; color: green; }
-  </style>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="styles.css">
 </head>
-<body>
-  <h3>Gemini Bridge</h3>
-  <div class="status">● System Ready</div>
-  <p style="font-size:11px; color:#666">
-    Open Gemini web and start typing. Context will be auto-injected.
-  </p>
+<body class="state-active">
+  <div class="container">
+    <header>
+      <h3>Memory Bridge</h3>
+      <label class="switch">
+        <input type="checkbox" id="pause-switch" checked>
+        <span class="slider"></span>
+      </label>
+    </header>
+
+    <div class="status-bar">
+      <div id="status-light" class="light green"></div>
+      <span id="status-text">Ready</span>
+    </div>
+
+    <div id="relevant-section">
+      <p style="font-size: 12px; color: #666; margin-bottom: 8px;">Relevant Memories:</p>
+      <div id="memory-list" class="memory-list">
+        <!-- 动态生成记忆卡片 -->
+        <p style="font-size: 12px; color: #999;">No relevant context found.</p>
+      </div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
 </body>
 </html>

@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "llm-memory-bridge": {
+      "command": "/Users/menot/PycharmProjects/joint/venv/bin/python",
+      "args": [
+        "/Users/menot/PycharmProjects/joint/server/mcp_server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "/Users/menot/PycharmProjects/joint/server"
+      }
+    }
+  }
+}

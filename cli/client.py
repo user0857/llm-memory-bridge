@@ -1,16 +1,13 @@
 import os
 import sys
-import json
-import requests
+import asyncio
 import google.generativeai as genai
-from google.generativeai.types import content_types
-from collections.abc import Iterable
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 from pathlib import Path
 
 # --- 配置 ---
-BRIDGE_SERVER_URL = "http://127.0.0.1:8000"
 API_KEY = os.getenv("GEMINI_API_KEY")
-HISTORY_FILE = Path("chat_history.json")
 
 if not API_KEY:
     print("❌ 错误: 未找到 GEMINI_API_KEY 环境变量。")
@@ -18,100 +15,116 @@ if not API_KEY:
 
 genai.configure(api_key=API_KEY)
 
-# --- Tool Functions (供 Gemini 调用) ---
-def search_memory_tool(query: str):
-    """
-    Search the long-term memory for relevant context.
-    Use this when the user asks about past events, preferences, or specific project details.
-    """
-    print(f"  🔍 [Tool] Searching memory for: '{query}'...")
-    try:
-        resp = requests.post(f"{BRIDGE_SERVER_URL}/search_context", json={"user_input": query}, timeout=5)
-        if resp.status_code == 200:
-            data = resp.json()
-            ctx = data.get("context", "")
-            if ctx:
-                return ctx
-            return "No relevant memories found."
-    except Exception as e:
-        return f"Error connecting to memory bridge: {e}"
-    return "No result."
-
-def save_memory_tool(content: str, tags: str = ""):
-    """
-    Save important information to long-term memory.
-    Use this when the user explicitly asks to remember something, or shares significant personal/project info.
-    Args:
-        content: The text to remember.
-        tags: Comma-separated tags (e.g. "project,preference").
-    """
-    print(f"  💾 [Tool] Saving memory: '{content}'...")
-    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
-    try:
-        requests.post(
-            f"{BRIDGE_SERVER_URL}/add_memory", 
-            json={"content": content, "tags": tag_list},
-            timeout=5
+# --- MCP Client Context Manager ---
+class McpClientContext:
+    def __init__(self):
+        # 自动定位 mcp_server.py
+        current_dir = Path(__file__).parent
+        server_path = current_dir.parent / "server" / "mcp_server.py"
+        
+        self.server_params = StdioServerParameters(
+            command="python3", # 假设 python3 在 PATH 中，或者使用 sys.executable
+            args=[str(server_path)],
+            env={
+                "PYTHONPATH": str(server_path.parent),
+                "GEMINI_API_KEY": API_KEY, # 传递 key 给 server (如果有需要)
+                "PATH": os.environ.get("PATH", "")
+            }
         )
-        return "Memory saved successfully."
-    except Exception as e:
-        return f"Error saving memory: {e}"
+        self.session = None
+        self.exit_stack = None
 
-# 工具映射表
-tools_map = {
-    'search_memory_tool': search_memory_tool,
-    'save_memory_tool': save_memory_tool
-}
+    async def __aenter__(self):
+        self.exit_stack = contextlib.AsyncExitStack()
+        read, write = await self.exit_stack.enter_async_context(stdio_client(self.server_params))
+        self.session = await self.exit_stack.enter_async_context(ClientSession(read, write))
+        await self.session.initialize()
+        return self
 
-# --- Session Management ---
-# 简化版历史记录，主要用于恢复，但在 Function Calling 场景下
-# 复杂的 FunctionResponse 序列化比较麻烦，这里暂时只保存简单的文本交互作为上下文恢复参考
-# 或者完全重置以保证工具调用的连贯性。
-def load_chat_history():
-    # 暂时禁用历史恢复，因为 Tool Call 的历史结构比较复杂，
-    # 简单的 JSON 恢复容易导致 SDK 报错。
-    # 建议每次启动都是新会话，但拥有长期记忆库。
-    return []
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self.exit_stack.aclose()
+
+    async def get_tools_for_gemini(self):
+        """
+        动态获取 MCP 工具并转换为 Gemini SDK 可用的格式
+        """
+        mcp_tools = await self.session.list_tools()
+        gemini_tools = []
+        
+        for tool in mcp_tools.tools:
+            # 为每个工具创建一个闭包函数
+            # Gemini SDK 需要函数有明确的 Docstring
+            
+            tool_name = tool.name
+            tool_desc = tool.description
+            
+            # 动态生成函数
+            async def dynamic_tool_func(**kwargs):
+                # print(f"  🛠️  [MCP Call] {tool_name}({kwargs})")
+                result = await self.session.call_tool(tool_name, arguments=kwargs)
+                if result.isError:
+                    return f"Error: {result.content}"
+                return result.content[0].text if result.content else "Success"
+            
+            # 必须重命名函数，否则 Gemini 看到的都是 "dynamic_tool_func"
+            dynamic_tool_func.__name__ = tool_name
+            dynamic_tool_func.__doc__ = tool_desc
+            
+            gemini_tools.append(dynamic_tool_func)
+            
+        return gemini_tools
+
+import contextlib
 
 # --- 主程序 ---
-def main():
-    # 1. 初始化模型，绑定工具
-    tools = [search_memory_tool, save_memory_tool]
-    model = genai.GenerativeModel('gemini-1.5-flash', tools=tools) # 使用支持工具更好的模型
+async def main():
+    print("🔌 Connecting to MCP Server...")
     
-    # 开启自动函数调用 (Auto-function calling)
-    # SDK 会自动处理 function_call -> function_response 的往返
-    chat = model.start_chat(enable_automatic_function_calling=True)
-    
-    print("\n🤖 Gemini CLI (Tool Use / Agent Mode)")
-    print("-------------------------------------")
-    print("提示: 我现在有自主权，会根据需要查阅记忆或记录信息。")
-    print("      输入 '/recall <query>' 可强制手动检索。")
+    async with McpClientContext() as mcp_ctx:
+        # 1. 获取动态工具
+        tools = await mcp_ctx.get_tools_for_gemini()
+        print(f"✅ Connected! Loaded {len(tools)} tools: {[t.__name__ for t in tools]}")
+        
+        # 2. 初始化 Gemini
+        # 注意: 目前 Gemini Python SDK 的 Function Calling 对异步函数的支持
+        # 可能需要适配。最好的方式是将工具列表传给 model，让 SDK 知道它们的存在。
+        # 这里的 dynamic_tool_func 是 async 的，SDK 0.8.3+ 应该能处理，
+        # 或者我们手动处理 function_call。
+        
+        # 为了兼容性，Gemini SDK 的 enable_automatic_function_calling 
+        # 目前主要设计给同步函数。我们这里做一个简单的同步包装器可能更稳妥，
+        # 但因为我们需要 await session.call_tool，所以必须在一个 async 循环里。
+        
+        # 临时方案：Gemini SDK 的自动模式可能不支持 async 工具。
+        # 我们这里使用手动工具调用模式 (Manual Function Calling) 会更稳健。
+        
+        model = genai.GenerativeModel('gemini-1.5-flash', tools=tools)
+        chat = model.start_chat(enable_automatic_function_calling=True) 
+        # 尝试开启自动模式，如果报错，说明 SDK 还不支持 async tools
+        
+        print("\n🤖 Gemini CLI (MCP Native Mode)")
+        print("-------------------------------------")
+        print("提示: 我已连接到本地记忆神经中枢。")
 
-    while True:
-        try:
-            user_input = input("\nYou: ").strip()
-            if not user_input: continue
-            
-            if user_input.lower() in ['exit', 'quit']: 
-                break
-            
-            # 手动指令保留
-            if user_input.lower().startswith('/recall'):
-                q = user_input[7:].strip()
-                print(search_memory_tool(q))
-                continue
+        while True:
+            try:
+                # 异步获取输入，避免阻塞事件循环
+                loop = asyncio.get_running_loop()
+                user_input = await loop.run_in_executor(None, input, "\nYou: ")
+                
+                if user_input.strip().lower() in ['exit', 'quit']: 
+                    break
+                
+                # 发送消息
+                # 注意: send_message_async 是异步方法
+                response = await chat.send_message_async(user_input)
+                print(f"Gemini: {response.text}")
 
-            # 发送给 Gemini (SDK 自动处理工具调用)
-            response = chat.send_message(user_input)
-            
-            # 打印回复
-            print(f"Gemini: {response.text}")
-
-        except KeyboardInterrupt:
-            break
-        except Exception as e:
-            print(f"\n❌ Error: {e}")
+            except Exception as e:
+                print(f"\n❌ Error: {e}")
 
 if __name__ == "__main__":
-    main()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass

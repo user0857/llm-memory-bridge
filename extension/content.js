@@ -3,92 +3,108 @@
 let cachedContext = "";
 let lastQuery = "";
 let debounceTimer = null;
+let isPaused = false;
+let isComposing = false;
+let lastCompositionEndTime = 0;
+let aiResponseDebounceTimer = null;
+let lastSavedResponse = "";
 
-// 创建状态指示灯
+// 1. 初始化状态并监听存储变化
+chrome.storage.local.get(['isPaused'], (result) => {
+  isPaused = !!result.isPaused;
+  updateStatusIcon();
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.isPaused) {
+    isPaused = changes.isPaused.newValue;
+    updateStatusIcon();
+    console.log("[Bridge] Pause state changed:", isPaused);
+  }
+});
+
+// 创建状态指示灯 (网页右下角)
 const statusIndicator = document.createElement("div");
 statusIndicator.id = "gemini-memory-indicator";
 statusIndicator.innerText = "M";
-statusIndicator.title = "Memory Bridge Active";
+statusIndicator.title = "Memory Bridge (Click to open extension)";
 document.body.appendChild(statusIndicator);
 
-function updateStatus(active) {
-  statusIndicator.style.backgroundColor = active ? "#4caf50" : "#ccc";
-  statusIndicator.style.opacity = active ? "1" : "0.5";
-  if (active) statusIndicator.innerText = "M+"; // 表示有记忆注入
-  else statusIndicator.innerText = "M";
+function updateStatusIcon(hasContext = false) {
+  if (isPaused) {
+    statusIndicator.style.backgroundColor = "#9e9e9e";
+    statusIndicator.style.opacity = "0.6";
+    statusIndicator.innerText = "M-";
+  } else {
+    statusIndicator.style.backgroundColor = hasContext ? "#4caf50" : "#ccc";
+    statusIndicator.style.opacity = "1";
+    statusIndicator.innerText = hasContext ? "M+" : "M";
+  }
 }
 
-// 查找输入框 (Gemini 的输入框通常是一个 contenteditable 的 div)
+// 监听来自 Popup 的消息
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "getCurrentInput") {
+    const inputArea = getInputArea();
+    sendResponse({ text: inputArea ? inputArea.innerText : "" });
+  }
+});
+
+// 辅助函数：查找输入框
 function getInputArea() {
   let el = document.querySelector('div.rich-textarea > div[contenteditable="true"]');
   if (el) return el;
-
   const candidates = document.querySelectorAll('div[contenteditable="true"]');
   for (const c of candidates) {
-      if (c.offsetParent !== null && c.clientHeight > 10) {
-          return c;
-      }
+      if (c.offsetParent !== null && c.clientHeight > 10) return c;
   }
-  
-  el = document.querySelector('[role="textbox"]');
-  if (el) return el;
-
-  return null;
+  return document.querySelector('[role="textbox"]');
 }
 
-function getSendButton() {
-    return document.querySelector('button[aria-label*="Send"]') || 
-           document.querySelector('button[class*="send-button"]');
-}
-
-// 1. 核心搜索逻辑
+// 2. 核心搜索逻辑
 function handleInput(e, delay = 2000) {
-  // 兼容事件对象和直接传入的字符串
+  // Debug Log: 让我们看看事件是否触发，以及状态如何
+  // console.log(`[Bridge Debug] Input Event. Paused: ${isPaused}`);
+  
+  if (isPaused) return;
+  
   const inputArea = getInputArea();
-  if (!inputArea) return;
+  if (!inputArea) {
+      console.warn("[Bridge] Input area not found!");
+      return;
+  }
   
   const text = inputArea.innerText;
   if (!text || text.trim() === "") {
-      updateStatus(false);
+      updateStatusIcon(false);
       cachedContext = "";
       return;
   }
 
-  // 使用自定义或默认延迟进行防抖
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     if (text === lastQuery) return;
     lastQuery = text;
     
-    console.log("[Bridge] Searching context for:", text);
     chrome.runtime.sendMessage(
       { action: "searchContext", query: text },
       (response) => {
         if (response && response.success && response.data.source_count > 0) {
           cachedContext = response.data.context;
-          console.log("[Bridge] Found context:", cachedContext);
-          updateStatus(true);
+          updateStatusIcon(true);
         } else {
           cachedContext = "";
-          updateStatus(false);
+          updateStatusIcon(false);
         }
       }
     );
   }, delay);
 }
 
-// 监听粘贴事件
 function handlePaste(e) {
-    console.log("[Bridge] Paste detected, triggering quick search.");
-    // 粘贴后稍微等 DOM 更新再抓取文本
-    setTimeout(() => {
-        handleInput(null, 300); // 粘贴后 300ms 立即搜索
-    }, 50);
+    if (isPaused) return;
+    setTimeout(() => handleInput(null, 300), 50);
 }
-
-// 全局变量追踪输入法状态
-let isComposing = false;
-let lastCompositionEndTime = 0;
 
 document.addEventListener('compositionstart', () => { isComposing = true; });
 document.addEventListener('compositionend', () => {
@@ -96,12 +112,11 @@ document.addEventListener('compositionend', () => {
     lastCompositionEndTime = Date.now();
 });
 
-// 2. 拦截发送
+// 3. 拦截发送
 function handleKeydown(e) {
+  if (isPaused) return;
   const timeSinceComposition = Date.now() - lastCompositionEndTime;
-  if (isComposing || timeSinceComposition < 100 || e.isComposing) {
-      return;
-  }
+  if (isComposing || timeSinceComposition < 100 || e.isComposing) return;
 
   if (e.key === "Enter" && !e.shiftKey) {
     const inputArea = getInputArea();
@@ -109,11 +124,7 @@ function handleKeydown(e) {
 
     const userText = inputArea.innerText;
     if (userText && userText.trim().length > 0) {
-        console.log("[Bridge] Capturing memory:", userText);
-        chrome.runtime.sendMessage({
-            action: "addMemory", 
-            content: userText 
-        });
+        chrome.runtime.sendMessage({ action: "addMemory", content: userText });
     }
 
     if (cachedContext) {
@@ -122,17 +133,14 @@ function handleKeydown(e) {
            inputArea.innerText = originalText + "\n\n" + cachedContext;
            const inputEvent = new Event('input', { bubbles: true });
            inputArea.dispatchEvent(inputEvent);
-           console.log("[Bridge] Context injected just before send.");
       }
     }
   }
 }
 
-// 3. 监听 AI 回复
-let aiResponseDebounceTimer = null;
-let lastSavedResponse = "";
-
+// 4. 监听 AI 回复
 const responseObserver = new MutationObserver((mutations) => {
+  if (isPaused) return;
   let hasNewText = false;
   for (const mutation of mutations) {
     if (mutation.addedNodes.length > 0 && mutation.target.nodeType === 1) {
@@ -142,9 +150,7 @@ const responseObserver = new MutationObserver((mutations) => {
   }
   if (hasNewText) {
     clearTimeout(aiResponseDebounceTimer);
-    aiResponseDebounceTimer = setTimeout(() => {
-      extractLastAIResponse();
-    }, 3000);
+    aiResponseDebounceTimer = setTimeout(() => extractLastAIResponse(), 3000);
   }
 });
 
@@ -156,14 +162,7 @@ function domToMarkdown(element) {
         } else if (node.nodeType === Node.ELEMENT_NODE) {
             const tagName = node.tagName.toLowerCase();
             if (tagName === 'pre' || node.classList.contains('code-block')) {
-                md += `\n\
-\n${node.innerText}\n\
-\
-`;
-            } else if (tagName === 'img') {
-                if (node.src && !node.src.startsWith('data:')) {
-                     md += `\n![${node.alt || 'Image'}](${node.src})\n`;
-                }
+                md += `\n\n${node.innerText}\n\n`;
             } else if (tagName === 'p') {
                 md += domToMarkdown(node) + "\n\n";
             } else if (tagName === 'li') {
@@ -177,6 +176,7 @@ function domToMarkdown(element) {
 }
 
 function extractLastAIResponse() {
+    if (isPaused) return;
     const potentialContainers = document.querySelectorAll('.model-response-text, [data-test-id="model-response-text"]');
     let targetContainer = null;
     if (potentialContainers.length > 0) {
@@ -200,11 +200,9 @@ function extractLastAIResponse() {
 }
 
 function initBridge() {
-    console.log("[Bridge] Initializing...");
     setInterval(() => {
         const inputArea = getInputArea();
         if (inputArea && !inputArea.dataset.bridgeAttached) {
-            console.log("[Bridge] Input area found via polling, attaching listeners.");
             inputArea.addEventListener("input", (e) => handleInput(e, 2000));
             inputArea.addEventListener("paste", handlePaste);
             inputArea.addEventListener("keydown", handleKeydown, true); 
