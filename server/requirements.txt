@@ -3,5 +3,4 @@ uvicorn
 chromadb
 sentence-transformers
 mcp[cli]
-google-generativeai
 requests
