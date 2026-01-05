@@ -4,7 +4,7 @@ BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVER_DIR="$BASE_DIR/server"
 PID_FILE="$SERVER_DIR/server.pid"
 
-echo "🛑 Stopping Gemini Memory Bridge..."
+echo "🛑 Stopping LLM Memory Bridge..."
 
 # 1. 尝试从 PID 文件关闭
 if [ -f "$PID_FILE" ]; then

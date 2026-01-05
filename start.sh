@@ -7,7 +7,7 @@ LOG_FILE="$SERVER_DIR/server.log"
 PID_FILE="$SERVER_DIR/server.pid"
 VENV_PYTHON="$BASE_DIR/venv/bin/python"
 
-echo "🚀 Starting Gemini Memory Bridge..."
+echo "🚀 Starting LLM Memory Bridge..."
 
 # 1. 检查虚拟环境
 if [ ! -f "$VENV_PYTHON" ]; then

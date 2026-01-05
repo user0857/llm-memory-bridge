@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "📦 Installing Gemini Memory Bridge..."
+echo "📦 Installing LLM Memory Bridge..."
 
 # 1. 检查 Python
 if ! command -v python3 &> /dev/null; then

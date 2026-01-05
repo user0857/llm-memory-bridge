@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Gemini Memory Bridge",
+  "name": "LLM Memory Bridge",
   "version": "1.0",
   "description": "Syncs local memory context into Gemini web chats.",
   "permissions": [

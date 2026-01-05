@@ -1,16 +1,16 @@
-# Gemini Memory Bridge (第二大脑)
+# LLM Memory Bridge
 
-**Gemini Memory Bridge** 是你 Google Gemini 网页版聊天的“第二大脑”。它打通了网页聊天与本地持久化向量数据库的连接，让 Gemini 能够跨会话记住事实、偏好和上下文。
+**LLM Memory Bridge** 是你 AI 聊天工具（如 Google Gemini 网页版）的“第二大脑”。它打通了网页聊天与本地持久化向量数据库的连接，让 AI 能够跨会话记住事实、偏好和上下文。
 
-本项目现已采用中心化 API 架构，支持 **Chrome 插件** 和 **MCP (Model Context Protocol) Agent** 共同读写同一份记忆。
+本项目采用中心化 API 架构，支持 **Chrome 插件** 和 **MCP (Model Context Protocol) Agent** 共同读写同一份本地记忆。
 
 ![架构图](./architecture.png)
 
 ## ✨ 核心功能
 
 -   **自动记忆捕获**:
-    -   自动保存你的输入和 Gemini 的回复。
-    -   **智能过滤**: (开发中) 自动过滤简短的闲聊。
+    -   自动保存你的输入和 AI 的回复。
+    -   **智能过滤**: (开发中) 自动过滤简短、无意义的闲聊。
 -   **上下文注入 (RAG)**:
     -   打字时实时进行语义搜索。
     -   在发送消息前，自动将最相关的历史记忆注入到 Prompt 中。
@@ -19,7 +19,7 @@
     -   **记忆管理**: 点击插件图标即可查看当前相关记忆，并可直接删除。
     -   **本地优先**: 所有数据存储在本地 `ChromaDB`，完全掌控隐私。
 -   **MCP 支持**:
-    -   可连接 Cursor, Claude Desktop 等 MCP 客户端。
+    -   可连接 Cursor, Claude Desktop 等支持 MCP 协议的客户端。
     -   提供工具: `search_memory`, `save_memory`, `delete_memory`。
 
 ## 🛠 技术架构
@@ -28,7 +28,7 @@
 
 1.  **中心服务端 (FastAPI)**: 管理 ChromaDB 向量库，提供 HTTP API (`/api/search`, `/add_memory`, `/api/delete`)。
 2.  **Chrome 插件**: 注入到 `gemini.google.com`，负责 UI 交互、内容抓取及与服务端通信。
-3.  **MCP Server**: 一个轻量级桥接器，允许 LLM Agent (如 Claude) 通过中心服务端访问同一份记忆。
+3.  **MCP Server**: 一个轻量级桥接器，允许其它 AI Agent (如 Claude) 通过中心服务端访问同一份记忆。
 
 ## 🚀 安装与设置
 
@@ -60,7 +60,7 @@
 ```json
 {
   "mcpServers": {
-    "gemini-memory": {
+    "llm-memory-bridge": {
       "command": "/absolute/path/to/project/venv/bin/python",
       "args": ["/absolute/path/to/project/server/mcp_server.py"]
     }

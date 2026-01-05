@@ -5,7 +5,7 @@ from datetime import datetime
 import chromadb
 from chromadb.utils import embedding_functions
 
-app = FastAPI(title="Gemini Memory Bridge (Vector RAG Only)")
+app = FastAPI(title="LLM Memory Bridge (Vector RAG Only)")
 
 import os
 # --- 配置 ---
