@@ -1,62 +1,62 @@
-# Gemini Memory Bridge
+# Gemini Memory Bridge (第二大脑)
 
-**Gemini Memory Bridge** is a powerful "Second Brain" for your Google Gemini web chats. It bridges the gap between your web interactions and a persistent, local vector database, allowing Gemini to remember facts, preferences, and context across different sessions.
+**Gemini Memory Bridge** 是你 Google Gemini 网页版聊天的“第二大脑”。它打通了网页聊天与本地持久化向量数据库的连接，让 Gemini 能够跨会话记住事实、偏好和上下文。
 
-Now featuring a centralized API architecture, allowing both a **Chrome Extension** and an **MCP (Model Context Protocol) Agent** to read/write to the same memory.
+本项目现已采用中心化 API 架构，支持 **Chrome 插件** 和 **MCP (Model Context Protocol) Agent** 共同读写同一份记忆。
 
-![Architecture](./architecture.png)
+![架构图](./architecture.png)
 
-## ✨ Features
+## ✨ 核心功能
 
--   **Automatic Memory Capture**:
-    -   Saves your inputs and Gemini's responses automatically.
-    -   **Smart Filtering**: (Planned) Filters out short/irrelevant chitchat.
--   **Context Injection (RAG)**:
-    -   Real-time semantic search as you type.
-    -   Injects relevant past memories into the prompt *before* you send it.
--   **Privacy & Control**:
-    -   **Pause/Resume**: Global switch in the extension to stop recording.
-    -   **Memory Management**: View and delete specific memories directly from the Extension Popup.
-    -   **Local First**: All data is stored locally in `ChromaDB`.
--   **MCP Support**:
-    -   Connects to Cursor, Claude Desktop, or other MCP clients.
-    -   Provides tools: `search_memory`, `save_memory`, `delete_memory`.
+-   **自动记忆捕获**:
+    -   自动保存你的输入和 Gemini 的回复。
+    -   **智能过滤**: (开发中) 自动过滤简短的闲聊。
+-   **上下文注入 (RAG)**:
+    -   打字时实时进行语义搜索。
+    -   在发送消息前，自动将最相关的历史记忆注入到 Prompt 中。
+-   **隐私与控制**:
+    -   **暂停/恢复**: 插件端提供全局开关，一键停止录制。
+    -   **记忆管理**: 点击插件图标即可查看当前相关记忆，并可直接删除。
+    -   **本地优先**: 所有数据存储在本地 `ChromaDB`，完全掌控隐私。
+-   **MCP 支持**:
+    -   可连接 Cursor, Claude Desktop 等 MCP 客户端。
+    -   提供工具: `search_memory`, `save_memory`, `delete_memory`。
 
-## 🛠 Architecture
+## 🛠 技术架构
 
-The project consists of three parts:
+项目由三部分组成：
 
-1.  **Central Server (FastAPI)**: Manages the ChromaDB vector database and provides HTTP APIs (`/api/search`, `/add_memory`, `/api/delete`).
-2.  **Chrome Extension**: Injects into `gemini.google.com`, communicates with the server, handles UI overlay, and captures chat content.
-3.  **MCP Server**: A lightweight bridge that allows LLM agents (like Claude or Cursor's AI) to access the same memory database via the Central Server.
+1.  **中心服务端 (FastAPI)**: 管理 ChromaDB 向量库，提供 HTTP API (`/api/search`, `/add_memory`, `/api/delete`)。
+2.  **Chrome 插件**: 注入到 `gemini.google.com`，负责 UI 交互、内容抓取及与服务端通信。
+3.  **MCP Server**: 一个轻量级桥接器，允许 LLM Agent (如 Claude) 通过中心服务端访问同一份记忆。
 
-## 🚀 Installation & Setup
+## 🚀 安装与设置
 
-### Prerequisites
+### 前置要求
 -   Python 3.10+
--   Google Chrome / Brave / Edge
+-   Google Chrome / Brave / Edge 浏览器
 
-### 1. Start the Central Server
+### 1. 启动中心服务端
 ```bash
-# 1. Install dependencies
+# 1. 安装依赖
 ./install.sh
 
-# 2. Start the server (runs in background)
+# 2. 启动服务 (后台运行)
 ./start.sh
 ```
-*The server runs on `http://127.0.0.1:8000`.*
+*服务运行在 `http://127.0.0.1:8000`。*
 
-### 2. Install the Chrome Extension
-1.  Open Chrome and go to `chrome://extensions`.
-2.  Enable **Developer mode** (top right).
-3.  Click **Load unpacked**.
-4.  Select the `extension/` folder in this project.
-5.  Visit [gemini.google.com](https://gemini.google.com). You should see a status indicator ("M") in the bottom right.
+### 2. 安装 Chrome 插件
+1.  打开 Chrome 浏览器，访问 `chrome://extensions`。
+2.  开启右上角的 **开发者模式 (Developer mode)**。
+3.  点击 **加载已解压的扩展程序 (Load unpacked)**。
+4.  选择本项目中的 `extension/` 文件夹。
+5.  访问 [gemini.google.com](https://gemini.google.com)，你应该能看到右下角出现一个 "M" 状态指示灯。
 
-### 3. Configure MCP (Optional)
-If you want to use this memory with Claude Desktop or Cursor:
+### 3. 配置 MCP (可选)
+如果你想在 Claude Desktop 或 Cursor 中使用此记忆库：
 
-**For Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`):**
+**Claude Desktop 配置 (`~/Library/Application Support/Claude/claude_desktop_config.json`):**
 ```json
 {
   "mcpServers": {
@@ -67,27 +67,33 @@ If you want to use this memory with Claude Desktop or Cursor:
   }
 }
 ```
+*(请确保将路径替换为你本地的绝对路径)*
 
-## 📖 Usage Guide
+## 📖 使用指南
 
-### Extension UI
--   **Status Indicator (Bottom Right)**:
-    -   **Green (M+)**: Active, relevant context found.
-    -   **Gray (M-)**: Recording paused.
-    -   **Red**: Server offline or error.
--   **Popup Panel (Click Extension Icon)**:
-    -   **Switch**: Toggle Pause/Resume.
-    -   **Memory List**: See the top 3 relevant memories for your current input.
-    -   **Delete**: Remove specific memories instantly.
+### 插件界面
+-   **状态指示灯 (右下角)**:
+    -   **绿色 (M+)**: 活跃，已找到相关上下文。
+    -   **灰色 (M-)**: 录制已暂停。
+    -   **红色**: 服务端离线或报错。
+-   **管理面板 (点击插件图标)**:
+    -   **开关**: 一键 暂停/恢复 记忆服务。
+    -   **记忆列表**: 查看当前输入最相关的 3 条记忆。
+    -   **删除**: 点击垃圾桶图标即可删除指定记忆。
 
-### CLI / Agent
-You can also interact via the MCP tools if you are using an AI agent:
--   `save_memory(content, tags)`
--   `search_memory(query)`
--   `delete_memory(memory_id)`
+### CLI / Agent 工具
+如果你使用 AI Agent，可以直接调用以下工具：
+-   `save_memory(content, tags)`: 保存记忆。
+-   `search_memory(query)`: 搜索记忆。
+-   `delete_memory(memory_id)`: 删除记忆 (需先搜索获取 ID)。
 
-## 🤝 Contributing
-Feel free to fork and submit Pull Requests!
+## 🛑 停止服务
+```bash
+./stop.sh
+```
 
-## 📄 License
+## 🤝 贡献
+欢迎 Fork 和提交 Pull Request！
+
+## 📄 许可证
 MIT
