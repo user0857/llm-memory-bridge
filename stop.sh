@@ -4,7 +4,7 @@ BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVER_DIR="$BASE_DIR/server"
 PID_FILE="$SERVER_DIR/server.pid"
 
-echo "🛑 Stopping Gemini Bridge Server..."
+echo "🛑 Stopping Gemini Memory Bridge..."
 
 # 1. 尝试从 PID 文件关闭
 if [ -f "$PID_FILE" ]; then
@@ -21,7 +21,7 @@ else
     echo "ℹ️  No PID file found. Checking port 8000..."
 fi
 
-# 2. 兜底：强制清理端口 8000
+# 2. 兜底：强制清理端口 8000 (防止僵尸进程)
 PORT_PID=$(lsof -ti:8000)
 if [ ! -z "$PORT_PID" ]; then
     echo "🧹 Cleaning up process on port 8000 (PID: $PORT_PID)..."

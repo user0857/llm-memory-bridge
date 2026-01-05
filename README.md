@@ -86,11 +86,6 @@ You can also interact via the MCP tools if you are using an AI agent:
 -   `search_memory(query)`
 -   `delete_memory(memory_id)`
 
-## 🛑 Stopping
-```bash
-./stop_bridge.sh
-```
-
 ## 🤝 Contributing
 Feel free to fork and submit Pull Requests!
 
