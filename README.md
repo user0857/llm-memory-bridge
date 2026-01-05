@@ -1,119 +1,119 @@
 # LLM Memory Bridge (ContextMesh)
 
-> "A unified, local-first context layer bridging the gap between CLI Agents and Web-based LLM interactions via MCP and Browser Extensions."
+> "基于 MCP 的全域记忆中枢：打破本地 CLI 与 Web LLM 应用的上下文孤岛。"
 
-**LLM Memory Bridge** (formerly Gemini Memory Bridge) is an open-source initiative designed to dismantle the **context silos** between your local development environment and browser-based AI chats.
+**LLM Memory Bridge** (原名 Gemini Memory Bridge) 是一个开源项目，旨在消除本地开发环境与浏览器端 AI 聊天之间的**上下文隔阂 (Context Silos)**。
 
-By orchestrating a **local vector store (ChromaDB)** with the **Model Context Protocol (MCP)**, this project creates a persistent, shared memory stream. Whether you are debugging via a terminal CLI or brainstorming in a web interface (e.g., Gemini/ChatGPT), your AI assistant maintains a **continuous, synchronized state**.
+通过将 **本地向量数据库 (ChromaDB)** 与 **模型上下文协议 (MCP)** 相结合，本项目构建了一个持久化、共享的记忆流。无论你是在终端 (CLI) 中调试代码，还是在网页端 (如 Gemini/ChatGPT) 头脑风暴，你的 AI 助手都能保持**连续、同步的上下文状态**。
 
-## ✨ Key Features
+## ✨ 核心特性
 
-*   **🔌 Omni-channel Synchronization**: Seamlessly syncs context between CLI tools and Web LLMs using a custom Chrome Extension.
-*   **⚡ MCP-Native Architecture**: Exposes RAG capabilities as standard MCP tools (`search_memory`, `save_memory`), ensuring compatibility with **Claude Desktop**, **Gemini CLI**, and other MCP clients.
-*   **🔒 Local-First Privacy**: All memory vectors are stored locally in ChromaDB, ensuring data sovereignty. No API keys are required for the memory server itself.
+*   **🔌 全渠道同步 (Omni-channel Sync)**: 通过定制的 Chrome 插件，无缝同步 CLI 工具与 Web LLM 之间的上下文。
+*   **⚡ MCP 原生架构**: 将 RAG 能力封装为标准的 MCP 工具 (`search_memory`, `save_memory`)，确保完美兼容 **Claude Desktop**、**Google Gemini CLI** 以及其他 MCP 客户端。
+*   **🔒 本地隐私优先 (Local-First)**: 所有记忆向量均存储在本地 ChromaDB 中，确保数据主权。记忆服务本身无需任何 API Key，完全离线运行。
 
-## 🚀 Quick Start
+## 🚀 快速开始
 
-### 1. Installation
+### 1. 安装项目
 
 ```bash
-# 1. Clone the repository
+# 1. 克隆仓库
 git clone https://github.com/yourname/llm-memory-bridge.git
 cd llm-memory-bridge
 
-# 2. Install dependencies (Mac/Linux)
+# 2. 安装依赖 (Mac/Linux)
 chmod +x install.sh
 ./install.sh
 ```
 
-### 2. Connect to an Agent (MCP Client)
+### 2. 连接到 Agent (MCP 客户端)
 
-You can connect this bridge to any MCP-compliant client. Here are the two most popular methods:
+你可以将此 Bridge 连接到任何支持 MCP 的客户端。以下是两种最流行的连接方式：
 
-#### Option A: Official Google Gemini CLI (Recommended)
+#### 方案 A: 官方 Google Gemini CLI (推荐)
 
-1.  **Install Gemini CLI**:
+1.  **安装 Gemini CLI**:
     ```bash
     npm install -g @google/gemini-cli
     ```
-2.  **Register the Bridge**:
+2.  **注册 Bridge 服务**:
     ```bash
     gemini mcp add llm-memory-bridge \
       --command "$(pwd)/venv/bin/python" \
       --args "$(pwd)/server/mcp_server.py" \
       --env "PYTHONPATH=$(pwd)/server"
     ```
-3.  **Use it**:
+3.  **开始使用**:
     ```bash
-    export GEMINI_API_KEY="your_api_key"
-    gemini
-    > /mcp list  # Verify connection
-    > Please remember that my project 'Beacon' is based on ESP32.
-    ```
+    export GEMINI_API_KEY="你的_API_KEY"
+gemini
+> /mcp list  # 验证连接状态
+> Please remember that my project 'Beacon' is based on ESP32.
+```
 
-#### Option B: Claude Desktop
+#### 方案 B: Claude Desktop
 
-Add the following to your `claude_desktop_config.json` (typically in `~/Library/Application Support/Claude/` on macOS):
+将以下配置添加到你的 `claude_desktop_config.json` 文件中 (macOS 上通常位于 `~/Library/Application Support/Claude/`):
 
 ```json
 {
   "mcpServers": {
     "llm-memory-bridge": {
-      "command": "/ABSOLUTE/PATH/TO/llm-memory-bridge/venv/bin/python",
+      "command": "/你的项目的绝对路径/llm-memory-bridge/venv/bin/python",
       "args": [
-        "/ABSOLUTE/PATH/TO/llm-memory-bridge/server/mcp_server.py"
+        "/你的项目的绝对路径/llm-memory-bridge/server/mcp_server.py"
       ],
       "env": {
-        "PYTHONPATH": "/ABSOLUTE/PATH/TO/llm-memory-bridge/server"
+        "PYTHONPATH": "/你的项目的绝对路径/llm-memory-bridge/server"
       }
     }
   }
 }
 ```
 
-### 3. Install Chrome Extension (for Web Sync)
+### 3. 安装 Chrome 插件 (用于 Web 同步)
 
-To sync your web conversations (e.g., from `gemini.google.com`) into this local memory:
+如果你希望将网页端的对话 (如 `gemini.google.com`) 同步到本地记忆库：
 
-1.  Open Chrome and navigate to `chrome://extensions/`.
-2.  Enable **Developer mode** in the top right.
-3.  Click **Load unpacked** and select the `extension/` directory in this project.
-4.  **Start the Bridge Server** (The extension needs this HTTP bridge):
+1.  打开 Chrome 浏览器，访问 `chrome://extensions/`。
+2.  开启右上角的 **Developer mode (开发者模式)**。
+3.  点击 **Load unpacked**，选择本项目下的 `extension/` 文件夹。
+4.  **启动 Bridge Server** (插件需要此 HTTP 服务来传输数据):
     ```bash
     ./start_bridge.sh
     ```
 
-## 🛠️ MCP Tools Available
+## 🛠️ 可用的 MCP 工具
 
-Once connected, your AI Agent will automatically have access to these tools:
+连接成功后，你的 AI Agent 将自动获得以下能力：
 
 *   **`search_memory(query: str)`**
-    *   *Description*: Semantic search through your long-term vector history.
-    *   *Usage*: The Agent calls this when you ask about past projects, preferences, or specific details (e.g., "What was the error log I showed you yesterday?").
+    *   *描述*: 对本地长效向量历史进行语义搜索。
+    *   *场景*: 当你询问过去的项目、偏好或具体细节时，Agent 会自动调用此工具 (例如："我昨天给你看的那个错误日志是啥？")。
     
 *   **`save_memory(content: str, tags: List[str])`**
-    *   *Description*: Persist information into the local ChromaDB.
-    *   *Usage*: The Agent calls this when you explicitly ask it to remember something or when it detects important context (e.g., "Note that I'm using Python 3.11 for this repo").
+    *   *描述*: 将信息持久化存储到本地 ChromaDB。
+    *   *场景*: 当你明确要求记住某事，或 Agent 识别到重要上下文时自动调用 (例如："记住，这个仓库我用的是 Python 3.11")。
 
-## 📝 Usage Examples
+## 📝 使用范例
 
-**Scenario 1: Teaching the AI**
-> **User**: "I'm working on a new project called 'Titan'. It's a Rust-based web server."
-> **Agent**: *Thinking... calls `save_memory("Project Titan: Rust-based web server", ["project", "titan"])`*
-> **Agent**: "Got it. I've saved 'Titan' to your memory."
+**场景 1: 教会 AI (写入记忆)**
+> **用户**: "我正在做一个新项目叫 'Titan'，它是一个基于 Rust 的 Web 服务器。"
+> **Agent**: *思考中... 决定调用 `save_memory("Project Titan: Rust-based web server", ["project", "titan"])`*
+> **Agent**: "收到了，我已经把 'Titan' 项目的信息存入记忆库了。"
 
-**Scenario 2: Recalling Context**
-> **User**: "Generate a Dockerfile for Titan."
-> **Agent**: *Thinking... calls `search_memory("Titan project language framework")`*
-> **Agent**: *Reads memory: "Titan is a Rust-based web server"*
-> **Agent**: "Here is a Dockerfile optimized for a Rust application..."
+**场景 2: 唤起记忆 (读取上下文)**
+> **用户**: "帮我给 Titan 生成一个 Dockerfile。"
+> **Agent**: *思考中... 不知道 Titan 是啥，决定调用 `search_memory("Titan project language framework")`*
+> **Agent**: *读取记忆返回结果: "Titan is a Rust-based web server"*
+> **Agent**: "根据记忆，Titan 是一个 Rust 项目。这是一个为你优化的 Rust Dockerfile..."
 
-## 🛠️ Architecture
+## 🛠️ 架构说明
 
-*   **`server/mcp_server.py`**: The core MCP server (FastMCP) handling tool requests and RAG logic.
-*   **`server/main.py`**: HTTP bridge for the Chrome Extension to push data to ChromaDB.
-*   **`extension/`**: Chrome extension that captures web chat context.
-*   **`chroma_db/`**: Local vector storage (Privacy-focused).
+*   **`server/mcp_server.py`**: 核心 MCP 服务器 (基于 FastMCP)，处理工具请求和 RAG 逻辑。
+*   **`server/main.py`**: HTTP 桥接服务，专供 Chrome 插件将网页数据推送到 ChromaDB。
+*   **`extension/`**: Chrome 浏览器插件，用于捕获网页聊天上下文。
+*   **`chroma_db/`**: 本地向量存储 (隐私保护)。
 
 ## License
 
