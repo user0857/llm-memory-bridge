@@ -20,10 +20,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
   
   if (request.action === "searchContext") {
-    fetch("http://127.0.0.1:8000/search_context", {
+    // 统一改为调用 /api/search 获取详细 JSON
+    fetch("http://127.0.0.1:8000/api/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_input: request.query })
+      body: JSON.stringify({ 
+          user_input: request.query,
+          threshold: request.threshold,
+          n_results: 20
+      })
     })
     .then(response => response.json())
     .then(data => sendResponse({ success: true, data: data }))
@@ -31,7 +36,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       console.error("Bridge Error:", error);
       sendResponse({ success: false, error: error.message });
     });
-    return true; // 保持消息通道开放以进行异步响应
+    return true; 
+  }
+  
+  if (request.action === "deleteMemory") {
+      fetch("http://127.0.0.1:8000/api/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memory_id: request.memoryId })
+    })
+    .then(response => response.json())
+    .then(data => sendResponse({ success: true, data: data }))
+    .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
   }
   
   if (request.action === "addMemory") {

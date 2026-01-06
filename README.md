@@ -1,99 +1,72 @@
-# LLM Memory Bridge
+# LLM Memory Bridge (记忆神经中枢)
 
-**LLM Memory Bridge** 是你 AI 聊天工具（如 Google Gemini 网页版）的“第二大脑”。它打通了网页聊天与本地持久化向量数据库的连接，让 AI 能够跨会话记住事实、偏好和上下文。
-
-本项目采用中心化 API 架构，支持 **Chrome 插件** 和 **MCP (Model Context Protocol) Agent** 共同读写同一份本地记忆。
+**LLM Memory Bridge** 是一个打通浏览器 AI 对话与本地长期记忆库的“神经桥梁”。它让 Google Gemini 等 Web AI 拥有跨会话的记忆能力，并支持通过 MCP (Model Context Protocol) 供 Claude Desktop 等 Agent 调用。
 
 ![架构图](./architecture.png)
 
-## ✨ 核心功能
+## ✨ 核心特性
 
--   **自动记忆捕获**:
-    -   自动保存你的输入和 AI 的回复。
-    -   **智能过滤**: (开发中) 自动过滤简短、无意义的闲聊。
--   **上下文注入 (RAG)**:
-    -   打字时实时进行语义搜索。
-    -   在发送消息前，自动将最相关的历史记忆注入到 Prompt 中。
--   **隐私与控制**:
-    -   **暂停/恢复**: 插件端提供全局开关，一键停止录制。
-    -   **记忆管理**: 点击插件图标即可查看当前相关记忆，并可直接删除。
-    -   **本地优先**: 所有数据存储在本地 `ChromaDB`，完全掌控隐私。
--   **MCP 支持**:
-    -   可连接 Cursor, Claude Desktop 等支持 MCP 协议的客户端。
-    -   提供工具: `search_memory`, `save_memory`, `delete_memory`。
+### 🧠 本地记忆增强 (RAG)
+- **智能感知**: 浏览器插件通过悬浮球 (FAB) 实时感知输入内容。
+- **动态检索**: 打字即搜索 (Debounce)，自动寻找最相关的历史记忆。
+- **状态反馈**: 
+    - 👓 **Searching**: 正在理解你的输入。
+    - 🧠 **Thinking**: 正在大脑中检索。
+    - 💉 **Ready**: 记忆就绪，点击即可一键注入。
 
-## 🛠 技术架构
+### 🔄 全链路同步 (Unified Sync)
+- **单源架构**: Content Script 作为唯一数据源，Popup 面板实时同步，杜绝“删了还在”的幽灵数据。
+- **双向管理**: 支持在网页端注入，在 Popup 端管理（删除/调整检索阈值）。
 
-项目由三部分组成：
+### 🔌 MCP 协议支持
+- 完美兼容 **Claude Desktop**, **Cursor** 等支持 MCP 的 AI 客户端。
+- **工具集**:
+    - `search_memory`: 语义检索。
+    - `save_memory`: 智能存储（总结后存入）。
+    - `update_memory`: 纠错与更新。
+    - `delete_memory`: 遗忘与清理。
 
-1.  **中心服务端 (FastAPI)**: 管理 ChromaDB 向量库，提供 HTTP API (`/api/search`, `/add_memory`, `/api/delete`)。
-2.  **Chrome 插件**: 注入到 `gemini.google.com`，负责 UI 交互、内容抓取及与服务端通信。
-3.  **MCP Server**: 一个轻量级桥接器，允许其它 AI Agent (如 Claude) 通过中心服务端访问同一份记忆。
+## 🛠 技术栈
+- **Backend**: FastAPI, ChromaDB (Vector Store), Sentence-Transformers (Local Embedding).
+- **Frontend**: Chrome Extension (Vanilla JS, CSS Variables, Content-Script-Driven Architecture).
+- **Protocol**: Model Context Protocol (FastMCP).
 
-## 🚀 安装与设置
+## 🚀 快速开始
 
-### 前置要求
--   Python 3.10+
--   Google Chrome / Brave / Edge 浏览器
-
-### 1. 启动中心服务端
+### 1. 启动记忆中枢 (Server)
 ```bash
-# 1. 安装依赖
+# 安装依赖
 ./install.sh
 
-# 2. 启动服务 (后台运行)
+# 启动服务 (运行在 http://127.0.0.1:8000)
 ./start.sh
 ```
-*服务运行在 `http://127.0.0.1:8000`。*
 
-### 2. 安装 Chrome 插件
-1.  打开 Chrome 浏览器，访问 `chrome://extensions`。
-2.  开启右上角的 **开发者模式 (Developer mode)**。
-3.  点击 **加载已解压的扩展程序 (Load unpacked)**。
-4.  选择本项目中的 `extension/` 文件夹。
-5.  访问 [gemini.google.com](https://gemini.google.com)，你应该能看到右下角出现一个 "M" 状态指示灯。
+### 2. 安装浏览器触手 (Extension)
+1. 打开 Chrome 访问 `chrome://extensions`。
+2. 开启 **开发者模式**。
+3. 点击 **加载已解压的扩展程序**。
+4. 选择本项目中的 `extension/` 目录。
+5. 刷新 Gemini 页面，你应该能看到右下角的 "M" 悬浮球。
 
-### 3. 配置 MCP (可选)
-如果你想在 Claude Desktop 或 Cursor 中使用此记忆库：
-
-**Claude Desktop 配置 (`~/Library/Application Support/Claude/claude_desktop_config.json`):**
+### 3. 连接 AI Agent (可选)
+配置 Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
-    "llm-memory-bridge": {
-      "command": "/absolute/path/to/project/venv/bin/python",
-      "args": ["/absolute/path/to/project/server/mcp_server.py"]
+    "memory-bridge": {
+      "command": "/absolute/path/to/venv/bin/python",
+      "args": ["/absolute/path/to/server/mcp_server.py"]
     }
   }
 }
 ```
-*(请确保将路径替换为你本地的绝对路径)*
 
 ## 📖 使用指南
 
-### 插件界面
--   **状态指示灯 (右下角)**:
-    -   **绿色 (M+)**: 活跃，已找到相关上下文。
-    -   **灰色 (M-)**: 录制已暂停。
-    -   **红色**: 服务端离线或报错。
--   **管理面板 (点击插件图标)**:
-    -   **开关**: 一键 暂停/恢复 记忆服务。
-    -   **记忆列表**: 查看当前输入最相关的 3 条记忆。
-    -   **删除**: 点击垃圾桶图标即可删除指定记忆。
-
-### CLI / Agent 工具
-如果你使用 AI Agent，可以直接调用以下工具：
--   `save_memory(content, tags)`: 保存记忆。
--   `search_memory(query)`: 搜索记忆。
--   `delete_memory(memory_id)`: 删除记忆 (需先搜索获取 ID)。
-
-## 🛑 停止服务
-```bash
-./stop.sh
-```
+- **日常对话**: 在网页输入框打字，看到 💉 亮起时，点击即可注入记忆上下文。
+- **记忆管理**: 点击浏览器右上角插件图标，可查看最近检索到的记忆，支持删除或调整相关度阈值 (0.5 - 1.5)。
+- **Agent 交互**: 对 Claude 说 "记住我们决定用 FastAPI"，它会自动调用 `save_memory`。
 
 ## 🤝 贡献
-欢迎 Fork 和提交 Pull Request！
-
-## 📄 许可证
-MIT
+本项目采用 MIT 协议。欢迎提交 PR 增强本地模型的推理能力 (WebLLM Integration)。

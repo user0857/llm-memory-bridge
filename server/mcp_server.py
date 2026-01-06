@@ -21,8 +21,17 @@ def _check_api_health():
 @mcp.tool()
 async def search_memory(query: str) -> str:
     """
-    Search long-term memory for relevant information.
-    Returns a list of memories with their IDs and content.
+    Search for memories in the vector database using semantic similarity.
+    
+    This tool is best used when you need to recall facts, user preferences, or past project context.
+    The 'query' can be a natural language question (e.g., "What is the project roadmap?") or keywords.
+    
+    Returns:
+        A formatted string containing a list of relevant memories. Each memory includes:
+        - ID: Unique identifier (crucial for deletion/update).
+        - Time: Timestamp of creation.
+        - Tags: Associated categories.
+        - Content: The actual memory text.
     """
     try:
         resp = requests.post(
@@ -59,7 +68,22 @@ async def search_memory(query: str) -> str:
 @mcp.tool()
 async def save_memory(content: str, tags: list[str] = None) -> str:
     """
-    Save a new piece of information to long-term memory.
+    Persist a new fact, insight, or task to the long-term vector memory.
+
+    **CRITICAL Workflow:**
+    1. **Search First**: Before calling this tool, you MUST use `search_memory` to check if similar information already exists.
+    2. **Check for Conflict**: 
+       - If a conflicting or outdated memory exists (e.g., "Favorite color is Blue" vs "Favorite color is Red"), use `update_memory` to overwrite it.
+       - If the new information is a duplicate, DO NOT save it again.
+    3. **Save New**: Only use `save_memory` if the information is truly new and non-conflicting.
+
+    **When to use:**
+    - Call this tool ONLY when there is significant progress in the conversation or a key conclusion is reached.
+    - ALWAYS summarize the information before saving.
+
+    Args:
+        content: The summarized text content to store.
+        tags: Optional list of strings for categorization (e.g., ["project-a", "preference"])
     """
     try:
         payload = {
@@ -84,10 +108,48 @@ async def save_memory(content: str, tags: list[str] = None) -> str:
         return f"Error saving memory: {str(e)}"
 
 @mcp.tool()
+async def update_memory(memory_id: str, new_content: str, new_tags: list[str] = None) -> str:
+    """
+    Update an existing memory with new content or tags.
+    
+    Use this tool when you need to correct, refine, or update a specific memory found via `search_memory`.
+    This maintains the cleanliness of the database by avoiding duplicates.
+    
+    Args:
+        memory_id: The exact ID of the memory to update (get this from `search_memory`).
+        new_content: The new, corrected text content.
+        new_tags: (Optional) New list of tags to replace the old ones.
+    """
+    try:
+        payload = {
+            "memory_id": memory_id,
+            "new_content": new_content
+        }
+        if new_tags:
+            payload["new_tags"] = new_tags
+            
+        resp = requests.post(
+            f"{API_BASE_URL}/api/update",
+            json=payload,
+            timeout=5
+        )
+        if resp.status_code == 200:
+            return f"Successfully updated memory {memory_id}."
+        else:
+            return f"Failed to update memory. Status: {resp.status_code}"
+            
+    except requests.exceptions.ConnectionError:
+        return "Error: Memory server (FastAPI) is offline."
+    except Exception as e:
+        return f"Error updating memory: {str(e)}"
+
+@mcp.tool()
 async def delete_memory(memory_id: str) -> str:
     """
-    Delete a specific memory by its ID. 
-    Use 'search_memory' first to find the ID of the memory you want to delete.
+    Permanently delete a specific memory from the database by its ID.
+    
+    CRITICAL: You MUST use 'search_memory' first to find the exact 'memory_id'.
+    Do not guess the ID. This operation cannot be undone.
     """
     try:
         resp = requests.post(
