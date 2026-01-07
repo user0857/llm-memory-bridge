@@ -19,3 +19,4 @@ server/chroma_db/
 
 # Extension
 extension/.DS_Store
+models/

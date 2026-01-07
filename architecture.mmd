@@ -1,56 +1,50 @@
-%%{init: {'theme': 'base', 'themeVariables': { 'fontFamily': 'arial', 'fontSize': '16px', 'primaryColor': '#fff', 'edgeLabelBackground': '#fff', 'clusterBkg': '#f9f9f9', 'clusterBorder': '#666' }}}%%
-graph TD
+%%{init: {'theme': 'base', 'flowchart': {'curve': 'stepAfter'}}}%%
+graph LR
     %% 样式定义
-    classDef userNode fill:#FFAB91,stroke:#BF360C,stroke-width:2px,color:white,font-weight:bold;
-    classDef clientEnv fill:#E1F5FE,stroke:#0277BD,stroke-width:2px,stroke-dasharray: 5 5;
-    classDef serverEnv fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,stroke-dasharray: 5 5;
-    classDef database fill:#E0F2F1,stroke:#00695C,stroke-width:2px,rx:5,ry:5;
-    classDef component fill:#ffffff,stroke:#455A64,stroke-width:1px,rx:5,ry:5;
-    classDef highlight fill:#FFF9C4,stroke:#FBC02D,stroke-width:2px,rx:5,ry:5;
+    classDef userNode fill:#FFAB91,stroke:#BF360C,stroke-width:2px,color:black,font-weight:bold;
+    classDef clientNode fill:#E1F5FE,stroke:#0277BD,stroke-width:1px;
+    classDef serverNode fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,font-weight:bold;
+    classDef resourceNode fill:#FFF9C4,stroke:#FBC02D,stroke-width:1px;
+    classDef dbNode fill:#E1BEE7,stroke:#4A148C,stroke-width:1px;
 
-    %% 用户
-    User((User / 用户)):::userNode
+    %% 节点
+    User((User)):::userNode
 
-    %% 客户端层
-    subgraph Clients ["🔌 客户端层 (Clients)"]
+    subgraph Clients ["Clients (Request Sources)"]
         direction TB
-        
-        subgraph Chrome ["Chrome 浏览器"]
-            GeminiWeb["🖥️ Gemini 网页版"]:::component
-            Extension["🧩 Chrome 插件<br/>(Content Script)"]:::highlight
-        end
-        
-        subgraph Agent ["AI Agent 环境"]
-            MCPServer["🤖 MCP Server<br/>(mcp_server.py)"]:::highlight
-            Claude["Claude / Cursor"]:::component
-        end
+        Ext[Chrome Extension]:::clientNode
+        MCP[MCP Server]:::clientNode
+        CLI[CLI / Claude]:::clientNode
     end
 
-    %% 服务端层
-    subgraph Server ["⚙️ 核心服务层 (Backend)"]
+    subgraph Backend ["Backend Service (Python)"]
         direction TB
-        
-        FastAPI["🚀 FastAPI Server<br/>(main.py)"]:::highlight
-        ChromaDB[("🗄️ ChromaDB<br/>(Vector Store)")]:::database
+        FastAPI[FastAPI Server<br/>main.py]:::serverNode
     end
 
-    %% 关系连线
+    subgraph Resources ["Local Resources"]
+        direction TB
+        Youtu[Youtu-LLM<br/>via llama.cpp]:::resourceNode
+        Chroma[(ChromaDB)]:::dbNode
+    end
+
+    subgraph Cloud ["Cloud"]
+        CloudLLM[Gemini / Claude Web]:::resourceNode
+    end
+
+    %% 连接 - 使用直线/折线逻辑
+    User --> Ext
+    User --> CLI
+    CLI --> MCP
     
-    %% 用户交互
-    User ==>|"聊天"| GeminiWeb
-    User ==>|"工具调用"| Claude
+    Ext -- "HTTP" --> FastAPI
+    MCP -- "HTTP" --> FastAPI
+    
+    FastAPI -- "1. Store/Retrieve" --> Chroma
+    FastAPI -- "2. Clean/Rerank" --> Youtu
+    
+    Ext -.->|"Context Injection"| CloudLLM
 
-    %% 插件交互
-    GeminiWeb -.->|"DOM 监听/注入"| Extension
-    Extension <==>|"HTTP POST<br/>(search/add)"| FastAPI
-
-    %% MCP 交互
-    Claude <==>|"Stdio / SSE"| MCPServer
-    MCPServer <==>|"HTTP POST<br/>(search/add/delete)"| FastAPI
-
-    %% 数据交互
-    FastAPI <==>|"Embedding & Storage"| ChromaDB
-
-    %% 样式应用
-    class Chrome,Agent clientEnv
-    class Server serverEnv
+    %% 强制布局分层
+    Clients ~~~ Backend
+    Backend ~~~ Resources
