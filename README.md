@@ -53,23 +53,26 @@
 │   ├── main.py          # FastAPI 服务入口
 │   ├── mcp_server.py    # MCP 接口实现
 │   └── requirements.txt
-├── tools/               # 测试与调试脚本
+├── tools/               # 实用脚本 (watch_memory.py)
+├── install.sh           # 环境安装脚本
 ├── start.sh             # 一键启动服务
-└── stop.sh              # 停止所有服务
+└── stop.sh              # 停止所有服务 (带安全检查)
 ```
 
 ## 🚀 快速开始
 
 ### 1. 环境配置
-创建 `.env` 文件并填入 Google API Key：
+创建 `.env` 文件并填入 Google Gemini API Key：
 ```bash
-GOOGLE_API_KEY=your_api_key_here
+GEMINI_API_KEY=your_api_key_here
+# 可选: 自定义模型
+# GATEKEEPER_MODEL=gemini-2.0-flash
 ```
 
 ### 2. 启动记忆中枢 (Server)
 ```bash
-./install.sh
-./start.sh
+./install.sh  # 首次运行安装依赖
+./start.sh    # 启动服务器 (默认端口 8000)
 ```
 
 ### 3. 安装浏览器扩展
@@ -78,20 +81,20 @@ GOOGLE_API_KEY=your_api_key_here
 3. 点击 **加载已解压的扩展程序**，选择项目中的 `extension/` 目录。
 
 ### 4. 连接 Claude/Cursor (MCP)
+**注意**: MCP Server 依赖于后台运行的 FastAPI 服务，请确保已运行 `./start.sh`。
+
 配置 `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
     "memory-bridge": {
-      "command": "/YOUR_PATH/venv/bin/python",
-      "args": ["/YOUR_PATH/server/mcp_server.py"],
-      "env": {
-        "GOOGLE_API_KEY": "your_api_key_here"
-      }
+      "command": "/YOUR_ABSOLUTE_PATH/venv/bin/python",
+      "args": ["/YOUR_ABSOLUTE_PATH/server/mcp_server.py"]
     }
   }
 }
 ```
+*请将 `/YOUR_ABSOLUTE_PATH/` 替换为实际的项目路径。*
 
 ## 🤝 贡献
 本项目采用 MIT 协议。

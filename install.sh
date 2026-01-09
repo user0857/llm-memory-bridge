@@ -8,7 +8,7 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# 2. 创建虚拟环境 (推荐)
+# 2. 创建虚拟环境
 if [ ! -d "venv" ]; then
     echo "Creating virtual environment..."
     python3 -m venv venv
@@ -21,11 +21,14 @@ source venv/bin/activate
 # 升级 pip
 pip install --upgrade pip
 
-# 安装 Server 依赖
-pip install fastapi uvicorn pydantic chromadb sentence-transformers
-
-# 安装 CLI 依赖
-pip install google-generativeai requests rich
+# 安装依赖 (统一使用 requirements.txt)
+if [ -f "server/requirements.txt" ]; then
+    pip install -r server/requirements.txt
+else
+    echo "⚠️ Warning: server/requirements.txt not found!"
+    # Fallback to manual install if file is missing (should not happen in git repo)
+    pip install fastapi uvicorn chromadb sentence-transformers mcp[cli] requests google-genai python-dotenv
+fi
 
 echo "✅ Installation Complete!"
 echo ""
