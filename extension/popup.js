@@ -1,10 +1,9 @@
-// popup.js - Pure View Component
+// popup.js - Modern Logic
 
-const statusLight = document.getElementById('status-light');
-const statusText = document.getElementById('status-text');
+const statusBadge = document.getElementById('status-badge');
+const statusText = statusBadge.querySelector('.status-text');
 const memoryList = document.getElementById('memory-list');
 const searchInput = document.getElementById('search-input');
-const body = document.body;
 
 // --- 1. Initialization & State Sync ---
 
@@ -17,7 +16,7 @@ async function init() {
         setAppState('online');
     } else {
         setAppState('offline');
-        memoryList.innerHTML = '<p style="font-size: 12px; color: #999;">Server unavailable. Make sure "start.sh" is running.</p>';
+        renderEmpty('Server unavailable. Check start.sh');
         return; 
     }
 
@@ -64,7 +63,7 @@ searchInput.addEventListener('keyup', async (e) => {
 
 async function performSearch(query) {
     setAppState('searching');
-    memoryList.innerHTML = '<p style="font-size: 12px; color: #666;">Searching...</p>';
+    memoryList.innerHTML = '<div class="empty-state">🔍 Searching...</div>';
     
     try {
         const response = await fetch('http://localhost:8000/api/search', {
@@ -77,40 +76,39 @@ async function performSearch(query) {
         
         const data = await response.json();
         renderMemories(data.results || []);
-        setAppState('online'); // Search done -> Green
+        setAppState('online'); 
         
     } catch (err) {
         console.error(err);
-        memoryList.innerHTML = `<p style="font-size: 12px; color: var(--status-red);">Error: ${err.message}</p>`;
-        setAppState('online'); // Revert to green (or maybe error state?)
+        renderEmpty(`Error: ${err.message}`);
+        setAppState('online'); 
     }
 }
 
 // --- 3. View State Management ---
 
 function setAppState(state) {
-    // Reset classes
-    body.className = '';
-    statusLight.className = 'light';
-    statusLight.removeAttribute('style');
+    // Reset base class but keep 'status-badge'
+    statusBadge.className = 'status-badge';
     
     switch (state) {
         case 'offline':
-            body.classList.add('state-offline');
-            statusLight.classList.add('gray');
+            statusBadge.classList.add('offline');
             statusText.innerText = 'Offline';
             break;
         case 'online':
-            body.classList.add('state-online');
-            statusLight.classList.add('green');
-            statusText.innerText = 'Success';
+            statusBadge.classList.add('online');
+            statusText.innerText = 'Ready';
             break;
         case 'searching':
-            body.classList.add('state-searching');
-            statusLight.classList.add('blue');
-            statusText.innerText = 'Processing...';
+            statusBadge.classList.add('searching');
+            statusText.innerText = 'Thinking...';
             break;
     }
+}
+
+function renderEmpty(msg = 'No relevant memories found.') {
+    memoryList.innerHTML = `<div class="empty-state">📭 ${msg}</div>`;
 }
 
 // --- 4. Render Logic ---
@@ -135,72 +133,108 @@ function formatTime(isoString) {
 function formatSource(source, url) {
     let icon = '❓';
     let label = source || 'Unknown';
-    let link = null;
-
-    if (source === 'web_extension') {
+    let tagClass = 'source-tag';
+    
+    if (source === 'web_extension' || source === 'web') {
         icon = '🌐';
         label = 'Web';
-        if (url) link = url;
     } else if (source === 'cli' || source === 'mcp') {
         icon = '💻';
         label = 'CLI';
+    } else if (source === 'file_watcher') {
+        icon = '📁';
+        label = 'File';
     }
 
-    let html = `<span title="${source}">${icon} ${label}</span>`;
-    if (link) {
-        html = `<a href="${link}" target="_blank" style="text-decoration:none; color:inherit;">${html}</a>`;
+    if (url) {
+        return `<a href="${url}" class="${tagClass}" target="_blank">${icon} ${label}</a>`;
+    } else {
+        return `<span class="${tagClass}">${icon} ${label}</span>`;
     }
-    return html;
 }
+
+const trashIcon = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+const copyIcon = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+const checkIcon = `<svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
 
 function renderMemories(memories) {
     memoryList.innerHTML = '';
     
     if (!memories || memories.length === 0) {
-        memoryList.innerHTML = '<p style="font-size: 12px; color: #999;">No relevant context found.</p>';
+        renderEmpty();
         return;
     }
 
-    memories.forEach(item => {
+    memories.forEach((item, index) => {
         const div = document.createElement('div');
         div.className = 'memory-item';
+        div.style.animationDelay = `${index * 0.05}s`;
         
-        // Metadata access (handle structure variations)
         const meta = item.metadata || {};
         const timestamp = meta.timestamp || item.timestamp;
         const source = meta.source || 'unknown';
         const sourceUrl = meta.source_url || null;
-
-        // Format distance
-        const distDisplay = (item.distance !== undefined) ? item.distance.toFixed(3) : "";
         
         div.innerHTML = `
             <div class="content">${item.content}</div>
             <div class="meta-footer">
                 <div class="meta-left">
                     ${formatSource(source, sourceUrl)}
-                    <span class="meta-sep">•</span>
-                    <span>${formatTime(timestamp)}</span>
+                    <span class="time-text">${formatTime(timestamp)}</span>
                 </div>
                 <div class="actions">
-                    <span style="font-size: 9px; color: #ccc; margin-right: 6px;">${distDisplay}</span>
-                    <span class="btn-del" data-id="${item.id}">Delete</span>
+                    <div class="btn-action btn-copy" title="Copy Content">
+                        ${copyIcon}
+                    </div>
+                    <div class="btn-action btn-del" title="Delete Memory" data-id="${item.id}">
+                        ${trashIcon}
+                    </div>
                 </div>
             </div>
         `;
         
-        // Expand on click
+        // --- Event Listeners ---
+
+        // Expand/Collapse
         div.addEventListener('click', (e) => {
-            if (e.target.classList.contains('btn-del') || e.target.closest('a')) return;
+            if (e.target.closest('.btn-action') || e.target.closest('a')) return;
             div.classList.toggle('expanded');
         });
 
-        // Delete Action
-        div.querySelector('.btn-del').addEventListener('click', async (e) => {
-            const id = e.target.dataset.id;
-            // Optimistic UI update
-            div.style.opacity = '0.5'; 
-            div.querySelector('.btn-del').innerText = '...';
+        // Copy Logic
+        const btnCopy = div.querySelector('.btn-copy');
+        let copyTimeout;
+        btnCopy.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            
+            try {
+                await navigator.clipboard.writeText(item.content);
+                
+                // UI Feedback
+                btnCopy.innerHTML = checkIcon;
+                btnCopy.classList.add('copied');
+                
+                // Revert after 2s
+                if (copyTimeout) clearTimeout(copyTimeout);
+                copyTimeout = setTimeout(() => {
+                    btnCopy.innerHTML = copyIcon;
+                    btnCopy.classList.remove('copied');
+                }, 2000);
+                
+            } catch (err) {
+                console.error('Failed to copy!', err);
+            }
+        });
+
+        // Delete Logic
+        const btnDel = div.querySelector('.btn-del');
+        btnDel.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const id = btnDel.dataset.id;
+            
+            div.style.transition = 'opacity 0.2s, transform 0.2s';
+            div.style.opacity = '0';
+            div.style.transform = 'scale(0.9)';
             
             try {
                 await fetch('http://localhost:8000/api/delete', {
@@ -208,10 +242,11 @@ function renderMemories(memories) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ memory_id: id })
                 });
-                div.remove();
+                setTimeout(() => div.remove(), 200);
             } catch (err) {
                 div.style.opacity = '1';
-                div.querySelector('.btn-del').innerText = 'Error';
+                div.style.transform = 'scale(1)';
+                alert('Delete failed');
             }
         });
 

@@ -4,27 +4,30 @@
   <meta charset="UTF-8">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body class="state-active">
+<body>
   <div class="container">
+    <!-- Unified Header -->
     <header>
-      <h3>Memory Bridge</h3>
+      <div class="brand">
+        <span class="logo-icon">🧠</span>
+        <h3>Memory Bridge</h3>
+      </div>
+      <div id="status-badge" class="status-badge offline">
+        <div class="dot"></div>
+        <span class="status-text">Offline</span>
+      </div>
     </header>
 
-    <div class="status-bar">
-      <div id="status-light" class="light green"></div>
-      <span id="status-text">Ready</span>
-    </div>
-
-    <!-- Search Section -->
-    <div class="search-box">
+    <!-- Search Section with Icon -->
+    <div class="search-wrapper">
+      <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
       <input type="text" id="search-input" placeholder="Search memories..." />
     </div>
 
+    <!-- Content Area -->
     <div id="relevant-section">
-      <p style="font-size: 12px; color: #666; margin-bottom: 8px;">Relevant Memories:</p>
       <div id="memory-list" class="memory-list">
-        <!-- 动态生成记忆卡片 -->
-        <p style="font-size: 12px; color: #999;">No relevant context found.</p>
+        <!-- Dynamic Content -->
       </div>
     </div>
   </div>

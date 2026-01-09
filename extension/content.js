@@ -43,22 +43,31 @@
 
             // 2. Send to Background (Proxy to Local Server)
             return new Promise((resolve) => {
-                chrome.runtime.sendMessage({
-                    action: "ingestGatekeeper",
-                    payload: {
-                        text: contentToSave,
-                        context: null, // Let server find context
-                        force_save: false, // Let Gatekeeper decide
-                        source: "web_extension", // <--- NEW METADATA
-                        source_url: url          // <--- NEW METADATA
-                    }
-                }, (response) => {
-                    if (chrome.runtime.lastError) {
-                        resolve({ success: false, error: chrome.runtime.lastError.message });
-                    } else {
-                        resolve(response);
-                    }
-                });
+                if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+                    resolve({ success: false, error: "Extension context missing or invalidated. Please reload the page." });
+                    return;
+                }
+
+                try {
+                    chrome.runtime.sendMessage({
+                        action: "ingestGatekeeper",
+                        payload: {
+                            text: contentToSave,
+                            context: null, // Let server find context
+                            force_save: false, // Let Gatekeeper decide
+                            source: "web_extension", // <--- NEW METADATA
+                            source_url: url          // <--- NEW METADATA
+                        }
+                    }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            resolve({ success: false, error: chrome.runtime.lastError.message });
+                        } else {
+                            resolve(response);
+                        }
+                    });
+                } catch (e) {
+                    resolve({ success: false, error: e.message });
+                }
             });
         }
     }
@@ -161,17 +170,22 @@
         async handleMemorize() {
             this.fab.setState('working');
             
-            // Use the Static Class Logic
-            const result = await BrowserGatekeeper.memorize();
-            
-            if (result.success && result.data && result.data.action_result) {
-                this.fab.setState('done');
-                console.log("✅ Page Memorized:", result.data);
-            } else {
+            try {
+                // Use the Static Class Logic
+                const result = await BrowserGatekeeper.memorize();
+                
+                if (result && result.success && result.data && result.data.action_result) {
+                    this.fab.setState('done');
+                    console.log("✅ Page Memorized:", result.data);
+                } else {
+                    this.fab.setState('idle');
+                    const errMsg = (result && result.error) || (result && result.data ? result.data.detail : "Unknown error");
+                    // alert("❌ Memorize failed: " + errMsg); // 暂时屏蔽 alert，避免干扰体验，只看 console
+                    console.error("Memorize failed:", errMsg);
+                }
+            } catch (err) {
                 this.fab.setState('idle');
-                const errMsg = result.error || (result.data ? result.data.detail : "Unknown error");
-                // alert("❌ Memorize failed: " + errMsg); // 暂时屏蔽 alert，避免干扰体验，只看 console
-                console.error("Memorize failed:", errMsg);
+                console.error("Memorize Exception:", err);
             }
         }
     }
