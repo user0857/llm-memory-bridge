@@ -1,50 +1,76 @@
-%%{init: {'theme': 'base', 'flowchart': {'curve': 'stepAfter'}}}%%
-graph LR
-    %% 样式定义
-    classDef userNode fill:#FFAB91,stroke:#BF360C,stroke-width:2px,color:black,font-weight:bold;
-    classDef clientNode fill:#E1F5FE,stroke:#0277BD,stroke-width:1px;
-    classDef serverNode fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,font-weight:bold;
-    classDef resourceNode fill:#FFF9C4,stroke:#FBC02D,stroke-width:1px;
-    classDef dbNode fill:#E1BEE7,stroke:#4A148C,stroke-width:1px;
-
-    %% 节点
-    User((User)):::userNode
-
-    subgraph Clients ["Clients (Request Sources)"]
-        direction TB
-        Ext[Chrome Extension]:::clientNode
-        MCP[MCP Server]:::clientNode
-        CLI[CLI / Claude]:::clientNode
-    end
-
-    subgraph Backend ["Backend Service (Python)"]
-        direction TB
-        FastAPI[FastAPI Server<br/>main.py]:::serverNode
-    end
-
-    subgraph Resources ["Local Resources"]
-        direction TB
-        Youtu[Youtu-LLM<br/>via llama.cpp]:::resourceNode
-        Chroma[(ChromaDB)]:::dbNode
-    end
-
-    subgraph Cloud ["Cloud"]
-        CloudLLM[Gemini / Claude Web]:::resourceNode
-    end
-
-    %% 连接 - 使用直线/折线逻辑
-    User --> Ext
-    User --> CLI
-    CLI --> MCP
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'background': '#FFF9F0',
+    'mainBkg': '#FFF9F0',
+    'primaryColor': '#D7CCC8',
+    'primaryTextColor': '#3E2723',
+    'primaryBorderColor': '#5D4037',
+    'lineColor': '#795548',
+    'secondaryColor': '#FFECB3',
+    'tertiaryColor': '#FFF3E0',
+    'noteBkgColor': '#FFFDE7',
+    'noteTextColor': '#5D4037',
+    'actorBkg': '#EFEBE9',
+    'actorBorder': '#8D6E63',
+    'actorTextColor': '#3E2723',
+    'sequenceNumberColor': '#8D6E63'
+  }
+}}%%
+sequenceDiagram
+    autonumber
     
-    Ext -- "HTTP" --> FastAPI
-    MCP -- "HTTP" --> FastAPI
+    box rgb(255, 248, 225) Sources
+    actor User
+    participant Client as Clients<br/>(Ext/MCP/File)
+    end
     
-    FastAPI -- "1. Store/Retrieve" --> Chroma
-    FastAPI -- "2. Clean/Rerank" --> Youtu
+    box rgb(252, 228, 236) Backend System
+    participant Server as FastAPI Server
+    participant Gate as Gatekeeper Agent
+    end
     
-    Ext -.->|"Context Injection"| CloudLLM
+    box rgb(255, 243, 224) External & Storage
+    participant Gemini as Google Gemini
+    participant Chroma as ChromaDB
+    end
 
-    %% 强制布局分层
-    Clients ~~~ Backend
-    Backend ~~~ Resources
+    Note over User, Chroma: Phase 1: Memory Ingestion (Save)
+
+    User->>Client: Chat / Browse / Edit File
+    Client->>Server: POST /memory (Raw Content)
+    activate Server
+    Server->>Gate: Delegate Processing
+    activate Gate
+    
+    Gate->>Gemini: Analyze Intent & Clean Data
+    activate Gemini
+    Gemini-->>Gate: Structured Memory (JSON)
+    deactivate Gemini
+    
+    alt is_valid_memory
+        Gate->>Chroma: Save Vector & Metadata
+        activate Chroma
+        Chroma-->>Gate: Success
+        deactivate Chroma
+        Gate-->>Server: Saved (Memory ID)
+    else is_noise
+        Gate-->>Server: Ignored (Reason)
+    end
+    deactivate Gate
+
+    Server-->>Client: Status Update (Green/Gray)
+    deactivate Server
+
+    Note over User, Chroma: Phase 2: Context Retrieval (RAG)
+
+    User->>Client: Typing Query...
+    Client->>Server: Search Memory (Query)
+    activate Server
+    Server->>Chroma: Query Embeddings (Top-K)
+    activate Chroma
+    Chroma-->>Server: Relevant Memories
+    deactivate Chroma
+    Server-->>Client: Context Injection
+    deactivate Server
+    Client-->>User: AI Response + Memory Context
