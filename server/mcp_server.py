@@ -68,37 +68,44 @@ async def search_memory(query: str) -> str:
 @mcp.tool()
 async def save_memory(content: str, tags: list[str] = None) -> str:
     """
-    Persist a new fact, insight, or task to the long-term vector memory.
-
-    **CRITICAL Workflow:**
-    1. **Search First**: Before calling this tool, you MUST use `search_memory` to check if similar information already exists.
-    2. **Check for Conflict**: 
-       - If a conflicting or outdated memory exists (e.g., "Favorite color is Blue" vs "Favorite color is Red"), use `update_memory` to overwrite it.
-       - If the new information is a duplicate, DO NOT save it again.
-    3. **Save New**: Only use `save_memory` if the information is truly new and non-conflicting.
-
-    **When to use:**
-    - Call this tool ONLY when there is significant progress in the conversation or a key conclusion is reached.
-    - ALWAYS summarize the information before saving.
-
+    智能保存记忆 (Smart Save).
+    
+    只需提供原始文本，Server 端的 Gatekeeper AI 会自动进行：
+    1. 意图识别 (过滤无用闲聊)
+    2. 隐私检查
+    3. 自动摘要与打标签
+    4. 冲突检测 (如果是旧信息会自动转为更新)
+    
     Args:
-        content: The summarized text content to store.
-        tags: Optional list of strings for categorization (e.g., ["project-a", "preference"])
+        content: The raw text, observation, or fact you want to remember.
+        tags: (Optional) Legacy parameter, ignored by Gatekeeper.
     """
     try:
+        # 调用智能摄入接口
         payload = {
-            "content": content,
-            "tags": tags or ["cli-agent"]
+            "text": content,
+            # 上下文让 Server 自己去搜，或者未来扩展让 Claude 传
+            "context": None,
+            # MCP 来源的数据被视为可信，强制进行处理（只做摘要，不做过滤）
+            "force_save": True,
+            "source": "mcp"
         }
+        
         resp = requests.post(
-            f"{API_BASE_URL}/add_memory", 
+            f"{API_BASE_URL}/api/gatekeeper/ingest", 
             json=payload,
-            timeout=5
+            timeout=10
         )
+        
         if resp.status_code == 200:
             data = resp.json()
-            mem_id = data.get("data", {}).get("id", "unknown")
-            return f"Successfully saved to memory. (ID: {mem_id})"
+            decision = data.get("decision", {})
+            action_result = data.get("action_result", "")
+            
+            tool_used = decision.get("tool")
+            thought = decision.get("thought")
+            
+            return f"Gatekeeper Processed: {tool_used}\nThought: {thought}\nResult: {action_result}"
         else:
             return f"Failed to save memory. Status: {resp.status_code}"
             

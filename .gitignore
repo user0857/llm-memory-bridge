@@ -17,6 +17,12 @@ server/chroma_db/
 *.log
 *.pid
 
+# Personal Memory Data
+.gemini/
+
 # Extension
 extension/.DS_Store
 models/
+
+# Temporary
+tmp/

@@ -55,11 +55,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       fetch("http://127.0.0.1:8000/add_memory", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: request.content, tags: ["web-chat"] })
+      body: JSON.stringify({ 
+          content: request.content, 
+          tags: ["web-chat"],
+          source: "web_extension"
+      })
     })
     .then(response => response.json())
     .then(data => sendResponse({ success: true, data: data }))
     .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
+  }
+
+  // --- New: Proxy for Gatekeeper Ingestion (Mixed Content Bypass) ---
+  if (request.action === "ingestGatekeeper") {
+      fetch("http://127.0.0.1:8000/api/gatekeeper/ingest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request.payload)
+      })
+      .then(response => {
+          if (!response.ok) throw new Error(`Server status: ${response.status}`);
+          return response.json();
+      })
+      .then(data => sendResponse({ success: true, data: data }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+      return true;
   }
 });

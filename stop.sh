@@ -1,34 +1,38 @@
 #!/bin/bash
 
-BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
-SERVER_DIR="$BASE_DIR/server"
-PID_FILE="$SERVER_DIR/server.pid"
+SERVER_PID_FILE="server.pid"
+WATCHER_PID_FILE="watcher.pid"
 
-echo "🛑 Stopping LLM Memory Bridge..."
+echo "🛑 Stopping services..."
 
-# 1. 尝试从 PID 文件关闭
-if [ -f "$PID_FILE" ]; then
-    PID=$(cat "$PID_FILE")
+# 停止 FastAPI Server
+if [ -f "$SERVER_PID_FILE" ]; then
+    PID=$(cat "$SERVER_PID_FILE")
     if ps -p $PID > /dev/null; then
+        echo "   - Killing FastAPI Server (PID: $PID)"
         kill $PID
-        echo "✅ Process $PID stopped."
-        rm "$PID_FILE"
+        rm "$SERVER_PID_FILE"
     else
-        echo "⚠️  Process $PID not found. Removing PID file."
-        rm "$PID_FILE"
+        echo "   - FastAPI Server already stopped."
+        rm "$SERVER_PID_FILE"
     fi
 else
-    echo "ℹ️  No PID file found. Checking port 8000..."
+    echo "   - FastAPI Server PID file not found."
 fi
 
-# 2. 兜底：强制清理端口 8000 (防止僵尸进程)
-PORT_PID=$(lsof -ti:8000)
-if [ ! -z "$PORT_PID" ]; then
-    echo "🧹 Cleaning up process on port 8000 (PID: $PORT_PID)..."
-    kill -9 $PORT_PID
-    echo "✅ Port 8000 freed."
+# 停止 Memory Watcher
+if [ -f "$WATCHER_PID_FILE" ]; then
+    PID=$(cat "$WATCHER_PID_FILE")
+    if ps -p $PID > /dev/null; then
+        echo "   - Killing Memory Watcher (PID: $PID)"
+        kill $PID
+        rm "$WATCHER_PID_FILE"
+    else
+        echo "   - Memory Watcher already stopped."
+        rm "$WATCHER_PID_FILE"
+    fi
 else
-    echo "✅ Port 8000 is free."
+    echo "   - Memory Watcher PID file not found."
 fi
 
-echo "Done."
+echo "✅ All services stopped."

@@ -10,6 +10,7 @@
   ],
   "host_permissions": [
     "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*",
     "https://gemini.google.com/*"
   ],
   "background": {
@@ -17,9 +18,8 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://gemini.google.com/*"],
-      "js": ["content.js"],
-      "css": ["styles.css"]
+      "matches": ["<all_urls>"],
+      "js": ["lib/Readability.js", "gatekeeper_core.js", "content.js"]
     }
   ],
   "action": {

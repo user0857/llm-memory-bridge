@@ -3,9 +3,11 @@
 :root {
   --gray-bg: linear-gradient(180deg, #f5f5f5 0%, #dcdcdc 100%);
   --green-bg: linear-gradient(180deg, #e8f5e9 0%, #c8e6c9 100%);
+  --blue-bg: linear-gradient(180deg, #e1f5fe 0%, #b3e5fc 100%);
   --red-bg: linear-gradient(180deg, #ffebee 0%, #ffcdd2 100%);
   --status-gray: #9e9e9e;
   --status-green: #4caf50;
+  --status-blue: #039be5;
   --status-red: #f44336;
 }
 
@@ -15,57 +17,28 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   transition: background 0.3s ease;
   min-height: 400px;
+  background: var(--gray-bg); /* Default Offline */
 }
 
-/* 渐变背景类 */
-body.state-paused { background: var(--gray-bg); }
-body.state-active { background: var(--green-bg); }
+/* 状态背景类 */
+body.state-offline { background: var(--gray-bg); }
+body.state-online { background: var(--green-bg); }
+body.state-searching { background: var(--blue-bg); }
 body.state-error { background: var(--red-bg); }
 
 .container {
   padding: 16px;
 }
 
-/* Header & Switch */
+/* Header */
 header {
   display: flex;
-  justify-content: space-between;
+  justify-content: center; /* Center title since switch is gone */
   align-items: center;
   margin-bottom: 20px;
 }
 
 h3 { margin: 0; font-size: 18px; color: #333; }
-
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
-}
-
-.switch input { opacity: 0; width: 0; height: 0; }
-
-.slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-color: #ccc;
-  transition: .4s;
-  border-radius: 24px;
-}
-
-.slider:before {
-  position: absolute;
-  content: "";
-  height: 18px; width: 18px;
-  left: 3px; bottom: 3px;
-  background-color: white;
-  transition: .4s;
-  border-radius: 50%;
-}
-
-input:checked + .slider { background-color: var(--status-green); }
-input:checked + .slider:before { transform: translateX(20px); }
 
 /* Status Light */
 .status-bar {
@@ -88,6 +61,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 /* 状态颜色 */
 .light.gray { background-color: var(--status-gray); }
 .light.green { background-color: var(--status-green); box-shadow: 0 0 8px var(--status-green); }
+.light.blue { background-color: var(--status-blue); box-shadow: 0 0 8px var(--status-blue); }
 .light.red { background-color: var(--status-red); box-shadow: 0 0 8px var(--status-red); }
 
 /* 转圈动画 */
@@ -104,84 +78,26 @@ input:checked + .slider:before { transform: translateX(20px); }
   100% { transform: rotate(360deg); }
 }
 
-/* --- RAG Slider Control Group --- */
-.control-group {
-  background: rgba(255,255,255,0.6);
-  padding: 12px;
-  border-radius: 8px;
+/* Search Box */
+.search-box {
   margin-bottom: 20px;
-  border: 1px solid rgba(0,0,0,0.05);
 }
 
-.slider-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.slider-header .label {
-  font-size: 13px;
-  font-weight: 500;
-  color: #555;
-}
-
-.slider-header .value {
-  font-size: 12px;
-  font-weight: bold;
-  color: #333;
-  background: rgba(0,0,0,0.05);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.slider-container {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.range-label {
-  font-size: 10px;
-  color: #888;
-  text-transform: uppercase;
-  font-weight: 600;
-}
-
-/* Custom Range Input */
-input[type=range] {
-  -webkit-appearance: none;
+#search-input {
   width: 100%;
-  height: 20px; /* 增加高度 */
-  background: transparent;
-  position: relative;
-  z-index: 10; /* 确保在顶层 */
-  margin: 0;
-}
-
-input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  height: 16px;
-  width: 16px;
-  border-radius: 50%;
-  background: var(--status-green);
-  cursor: pointer;
-  margin-top: -6px; /* Align center with track */
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-  position: relative;
-  z-index: 11;
-}
-
-input[type=range]::-webkit-slider-runnable-track {
-  width: 100%;
-  height: 4px;
-  cursor: pointer;
-  background: #ddd;
-  border-radius: 2px;
-}
-
-input[type=range]:focus {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  font-size: 14px;
   outline: none;
+  box-sizing: border-box;
+  transition: all 0.2s;
+  background: white;
+}
+
+#search-input:focus {
+  border-color: var(--status-green);
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
 }
 
 /* Memory List */
@@ -232,7 +148,7 @@ input[type=range]:focus {
   line-height: 1.5;
   min-height: 3em; /* Ensure at least 2 lines height */
   max-height: 3em; /* Cap at 2 lines height */
-  margin-bottom: 8px; /* Space between content and actions */
+  margin-bottom: 0; /* Space handled by footer */
 }
 
 .memory-item.expanded .content {
@@ -240,23 +156,45 @@ input[type=range]:focus {
   max-height: none;
 }
 
-.memory-item .actions {
+/* Metadata Footer */
+.meta-footer {
   display: flex;
-  justify-content: flex-end;
-  height: 20px;
+  justify-content: space-between;
   align-items: center;
-  opacity: 0.8;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f5f5f5;
 }
 
-.memory-item .actions:hover { opacity: 1; }
+.meta-left {
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  color: #aaa;
+}
+
+.meta-sep {
+  margin: 0 4px;
+  opacity: 0.5;
+}
+
+.memory-item .actions {
+  display: flex;
+  align-items: center;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.memory-item:hover .actions { opacity: 1; }
 
 .btn-del {
   color: var(--status-red);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 10px;
   padding: 2px 6px;
   border: 1px solid #ffcdd2;
   border-radius: 4px;
+  background: white;
 }
 
 .btn-del:hover { background: #ffebee; }

@@ -4,3 +4,5 @@ chromadb
 sentence-transformers
 mcp[cli]
 requests
+google-genai
+python-dotenv

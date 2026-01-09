@@ -1,20 +1,30 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 import chromadb
 from chromadb.utils import embedding_functions
 import hashlib
-import os
+import os # 确保 import os 存在且在顶层
 
-# 导入 Librarian
-from agents.librarian import get_librarian
+# 导入 Gatekeeper
+from agents.gatekeeper import get_gatekeeper
 
-app = FastAPI(title="LLM Memory Bridge (Librarian Agentic)")
+app = FastAPI(title="LLM Memory Bridge (Gatekeeper Enhanced)")
 
 # --- 配置 ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CHROMA_PATH = os.path.join(BASE_DIR, "chroma_db")
+
+# CORS 配置
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 允许所有来源 (生产环境建议限制为 chrome-extension://ID)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # 初始化 ChromaDB
 client = chromadb.PersistentClient(path=CHROMA_PATH)
@@ -25,18 +35,19 @@ collection = client.get_or_create_collection(
     embedding_function=sentence_transformer_ef
 )
 
-# 在启动时获取 Librarian 实例
-librarian = None
+# 在启动时获取 Gatekeeper 实例
+gatekeeper = None
 
 @app.on_event("startup")
 async def startup_event():
-    global librarian
-    librarian = get_librarian()
+    global gatekeeper
+    gatekeeper = get_gatekeeper()
 
 class MemoryItem(BaseModel):
     content: str
-    timestamp: Optional[str] = None
     tags: List[str] = []
+    source: str = "unknown"
+    source_url: Optional[str] = None
 
 class QueryRequest(BaseModel):
     user_input: str
@@ -54,21 +65,46 @@ class UpdateRequest(BaseModel):
 class IngestRequest(BaseModel):
     text: str
     context: Optional[str] = None
+    force_save: Optional[bool] = False
+    source: str = "unknown"
+    source_url: Optional[str] = None
 
-# --- Librarian 内部工具 (仅供内部逻辑调用) ---
+# --- 内部工具 ---
 
-def _internal_save_memory(content: str, tags: List[str]):
+def _internal_save_memory(content: str, tags: List[str], source: str = "unknown", source_url: str = None):
+    # Append Source/URL to content for better RAG visibility
+    content_footer = []
+    if source and source != "unknown":
+        content_footer.append(f"Source: {source}")
+    if source_url:
+        content_footer.append(f"URL: {source_url}")
+    
+    final_content = content
+    if content_footer:
+        final_content += f"\n\n[{' | '.join(content_footer)}]"
+
     timestamp = datetime.now().isoformat()
-    doc_id = hashlib.md5((content + timestamp).encode()).hexdigest()
+    doc_id = hashlib.md5((final_content + timestamp).encode()).hexdigest()
+    
+    metadata = {
+        "timestamp": timestamp,
+        "tags": ",".join(tags),
+        "source": source
+    }
+    if source_url:
+        metadata["source_url"] = source_url
+
     collection.add(
-        documents=[content],
-        metadatas=[{"timestamp": timestamp, "tags": ",".join(tags)}],
+        documents=[final_content],
+        metadatas=[metadata],
         ids=[doc_id]
     )
     return doc_id
 
 def _internal_update_memory(memory_id: str, new_content: str):
     timestamp = datetime.now().isoformat()
+    # We update timestamp on edit, but keep original source info if possible (limitation: chroma update overwrites metadata if provided)
+    # For now, just update timestamp to show freshness.
     collection.update(
         ids=[memory_id],
         documents=[new_content],
@@ -79,17 +115,16 @@ def _internal_update_memory(memory_id: str, new_content: str):
 
 @app.get("/")
 def read_root():
-    return {"status": "running", "agent": "Librarian", "count": collection.count()}
+    return {"status": "running", "agent": "Gatekeeper (Gemini)", "count": collection.count()}
 
-@app.post("/api/librarian/ingest")
-async def librarian_ingest(req: IngestRequest):
+@app.post("/api/gatekeeper/ingest")
+async def gatekeeper_ingest(req: IngestRequest):
     """
-    智能摄入接口：让 Librarian 决定如何处理输入
+    智能摄入接口：让 Gatekeeper 决定如何处理输入
     """
-    if not librarian:
-        raise HTTPException(status_code=503, detail="Librarian is still sleeping...")
+    if not gatekeeper:
+        raise HTTPException(status_code=503, detail="Gatekeeper is not ready (Check API Key).")
     
-    # 0. 自动搜索上下文 (帮助 Librarian 判断是否是更新)
     context_str = ""
     search_results = collection.query(
         query_texts=[req.text],
@@ -101,26 +136,31 @@ async def librarian_ingest(req: IngestRequest):
             doc = search_results['documents'][0][i]
             id_ = search_results['ids'][0][i]
             dist = search_results['distances'][0][i]
-            # 仅提供相关度较高的记忆作为参考
             if dist < 1.5:
                 context_parts.append(f"[ID: {id_}] {doc}")
         context_str = "\n".join(context_parts)
 
-    # 1. 询问 Librarian 的意见
-    # 优先使用请求自带的 context，如果没有则使用自动搜索的
     final_context = req.context or context_str
-    decision = librarian.process(req.text, final_context)
     
-    print(f"🧐 Librarian's Decision: {decision.get('thought')}")
+    # 调用 Gatekeeper (Pass source_url for context)
+    decision = gatekeeper.process(req.text, final_context, force_save=req.force_save, source_url=req.source_url)
+    
+    print(f"🧐 Gatekeeper's Decision (ForceSave={req.force_save}): {decision.get('thought')}")
     
     tool = decision.get("tool")
     args = decision.get("args", {})
     
-    # 2. 根据决策执行工具
     result = {"decision": decision, "context_provided": bool(final_context)}
     
     if tool == "save_memory":
-        doc_id = _internal_save_memory(args.get("content"), args.get("tags", []))
+        # CRITICAL FIX: Ensure source and source_url from the request are used, 
+        # unless the agent explicitly provides overrides (which is rare for these fields).
+        doc_id = _internal_save_memory(
+            content=args.get("content"), 
+            tags=args.get("tags", []),
+            source=req.source,         # Use the original source from request
+            source_url=req.source_url  # Use the original URL from request
+        )
         result["action_result"] = f"Saved with ID {doc_id}"
     elif tool == "update_memory":
         _internal_update_memory(args.get("memory_id"), args.get("new_content"))
@@ -134,26 +174,16 @@ async def librarian_ingest(req: IngestRequest):
 
 @app.post("/add_memory")
 def add_memory(item: MemoryItem):
-    """
-    (Legacy) 直接保存记忆
-    """
-    doc_id = _internal_save_memory(item.content, item.tags)
+    doc_id = _internal_save_memory(item.content, item.tags, item.source, item.source_url)
     return {"status": "success", "data": {"id": doc_id}}
 
 @app.post("/api/update")
-def update_memory(req: UpdateRequest):
-    """
-    (Legacy) 直接更新记忆
-    """
+def update_memory_api(req: UpdateRequest):
     _internal_update_memory(req.memory_id, req.new_content)
     return {"status": "success", "message": "Updated"}
 
 @app.post("/api/search")
 def api_search(query: QueryRequest):
-    """
-    通用搜索接口 (供 MCP Agent 等使用)
-    返回详细的 JSON 结构，包含 ID，方便后续删除或修改
-    """
     num_results = query.n_results if query.n_results else 5
     results = collection.query(
         query_texts=[query.user_input],
@@ -164,14 +194,12 @@ def api_search(query: QueryRequest):
         return {"results": []}
 
     structured_results = []
-    # ChromaDB returns lists of lists
     docs = results['documents'][0]
     ids = results['ids'][0]
     metadatas = results['metadatas'][0]
     distances = results['distances'][0]
 
-    # Filter by threshold if provided
-    threshold = query.threshold if query.threshold is not None else 1.0
+    threshold = query.threshold if query.threshold is not None else 1.5
     
     for i in range(len(docs)):
         dist = distances[i]
@@ -187,11 +215,7 @@ def api_search(query: QueryRequest):
 
 @app.post("/api/delete")
 def delete_memory(req: DeleteRequest):
-    """
-    删除指定 ID 的记忆
-    """
     try:
-        # chroma collection.delete supports where filters or ids
         collection.delete(ids=[req.memory_id])
         return {"status": "success", "message": f"Memory {req.memory_id} deleted"}
     except Exception as e:

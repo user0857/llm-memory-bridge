@@ -16,7 +16,9 @@ class Librarian:
 
     def __init__(self):
         if Librarian._model is None:
-            self.model_id = "mlx-community/Youtu-LLM-2B-4bit"
+            self.model_id = ("mlx-community/"
+                             ""
+                             "")
             print(f"🧠 Librarian is waking up (loading {self.model_id})...")
             Librarian._model, Librarian._tokenizer = load(self.model_id)
             print("📖 Librarian is ready.")
