@@ -1,39 +1,34 @@
 %%{init: {
   'theme': 'base',
   'themeVariables': {
-    'background': '#FFF9F0',
-    'mainBkg': '#FFF9F0',
+    'background': '#FFFAEE',
+    'mainBkg': '#FFFAEE',
     'primaryColor': '#D7CCC8',
     'primaryTextColor': '#3E2723',
     'primaryBorderColor': '#5D4037',
-    'lineColor': '#795548',
-    'secondaryColor': '#FFECB3',
-    'tertiaryColor': '#FFF3E0',
-    'noteBkgColor': '#FFFDE7',
-    'noteTextColor': '#5D4037',
+    'lineColor': '#8D6E63',
+    'secondaryColor': '#F5F5F5',
+    'tertiaryColor': '#EFEBE9',
+    'noteBkgColor': '#FFF8E1',
+    'noteTextColor': '#3E2723',
     'actorBkg': '#EFEBE9',
     'actorBorder': '#8D6E63',
-    'actorTextColor': '#3E2723',
-    'sequenceNumberColor': '#8D6E63'
+    'actorTextColor': '#3E2723'
   }
 }}%%
 sequenceDiagram
     autonumber
-    
-    box rgb(255, 248, 225) Sources
-    actor User
+
+    participant User
     participant Client as Clients<br/>(Ext/MCP/File)
-    end
-    
-    box rgb(252, 228, 236) Backend System
     participant Server as FastAPI Server
     participant Gate as Gatekeeper Agent
-    end
-    
-    box rgb(255, 243, 224) External & Storage
     participant Gemini as Google Gemini
     participant Chroma as ChromaDB
-    end
+
+    Note over User, Client: [ Sources ]
+    Note over Server, Gate: [ Backend System ]
+    Note over Gemini, Chroma: [ External & Storage ]
 
     Note over User, Chroma: Phase 1: Memory Ingestion (Save)
 
